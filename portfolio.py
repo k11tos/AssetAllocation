@@ -1,17 +1,15 @@
 #!/usr/bin/python3
 """
-Get portfolio with original dual momentum, VAA and LAA
+Get portfolio
 """
 
-import datetime
-import json
 import logging
 import sys
-from collections import defaultdict
 
 import telegram
 import yfinance as yf
 from fredapi import Fred
+
 
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -74,7 +72,7 @@ def get_vigilant_asset_allocation(momentum_score):
 
     LOGGER.debug("Momentum Scores:")
     for ticker, score in momentum_score.items():
-        LOGGER.debug(f"{ticker} momentum score: {round(score, 3)}")
+        LOGGER.debug("%s momentum score: %s", ticker, round(score, 3))
 
     if all(score >= 0 for score in momentum_score.values()):
         attackers = ["SPY", "EFA", "EEM", "AGG"]
@@ -348,113 +346,3 @@ def get_financial_data(tickers):
         sma_12month,
         today_price,
     )
-
-
-def main():
-    """
-    Main function
-    :return: None
-    """
-    # BAA, modified dual momentum, Bond dynamic asset allocatio
-    total_number_of_strategy = 4
-
-    fred = get_fred_account()
-    sp500 = fred.get_series("SP500").dropna()
-    unrate = fred.get_series("UNRATE").dropna()
-    with open("korean_etf.json", "r") as file:
-        korean_etf = json.load(file)
-
-    tickers = korean_etf.keys()
-
-    (
-        momentum_score,
-        momentum_score_simple,
-        profit_12month,
-        profit_6month,
-        sma_12month,
-        today_price,
-    ) = get_financial_data(" ".join(tickers))
-
-    print_info_message(str(datetime.datetime.today().date()))
-    # vaa = get_vigilant_asset_allocation(momentum_score)
-    # for key, value in vaa.items():
-    #     print_info_message(
-    #         "<VAA> "
-    #         + korean_etf[key]
-    #         + " : "
-    #         + str(round(value / total_number_of_strategy, 2))
-    #         + " %"
-    #     )
-    # odm = get_original_dual_momentum(profit_12month)
-    # for key, value in odm.items():
-    #     print_info_message(
-    #         "<ODM> "
-    #         + korean_etf[key]
-    #         + " : "
-    #         + str(round(value / total_number_of_strategy, 2))
-    #         + " %"
-    #     )
-    # laa = get_lethargic_asset_allocation(sp500, unrate)
-    # for key, value in laa.items():
-    #     if datetime.datetime.today().month == 1 or key not in [
-    #         "IWD",
-    #         "GLD",
-    #         "IEF",
-    #     ]:
-    #         print_info_message(
-    #             "<LAA> "
-    #             + korean_etf[key]
-    #             + " : "
-    #             + str(round(value / total_number_of_strategy, 2))
-    #             + " %"
-    #         )
-    # etf_ratio = defaultdict(int)
-    # baa = get_bold_asset_allocation(momentum_score, sma_12month, today_price)
-    # for key, value in baa.items():
-    #     print_info_message(
-    #         "<BAA> "
-    #         + korean_etf[key]
-    #         + " : "
-    #         + str(round(value / total_number_of_strategy, 2))
-    #         + " %"
-    #     )
-    # etf_ratio[key] = etf_ratio[key] + value / total_number_of_strategy
-    # mdm = get_modifiled_dual_momentum(profit_12month, profit_6month)
-    # for key, value in mdm.items():
-    #     print_info_message(
-    #         "<MDM> "
-    #         + korean_etf[key]
-    #         + " : "
-    #         + str(round(value / total_number_of_strategy, 2))
-    #         + " %"
-    #     )
-    #     etf_ratio[key] = etf_ratio[key] + value / total_number_of_strategy
-    # bdaa = get_bond_dynamic_asset_allocation(profit_6month)
-    # for key, value in bdaa.items():
-    #     print_info_message(
-    #         "<BDAA> "
-    #         + korean_etf[key]
-    #         + " : "
-    #         + str(round(value / total_number_of_strategy, 2))
-    #         + " %"
-    #     )
-    #     etf_ratio[key] = etf_ratio[key] + value / total_number_of_strategy
-    haa = get_hybrid_asset_allocation(momentum_score_simple)
-    for key, value in haa.items():
-        print_info_message(
-            "<HAA> "
-            + korean_etf[key]
-            + " : "
-            + str(round(value / total_number_of_strategy, 2))
-            + " %"
-        )
-    #     etf_ratio[key] = etf_ratio[key] + value / total_number_of_strategy
-    #
-    # for key, value in etf_ratio.items():
-    #     print_info_message(
-    #         korean_etf[key] + " : " + str(round(value, 2)) + " %"
-    #     )
-
-
-if __name__ == "__main__":
-    main()
