@@ -10,7 +10,6 @@ import telegram
 import yfinance as yf
 from fredapi import Fred
 
-
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -127,7 +126,7 @@ def get_bold_asset_allocation(momentum_score, sma_12month, today_price):
     return baa
 
 
-def get_modifiled_dual_momentum(profit_12month, profit_6month):
+def get_modified_dual_momentum(profit_12month, profit_6month):
     """
     Get ticker for MDM : 825
     """
