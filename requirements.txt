@@ -1,0 +1,4 @@
+python-telegram-bot=20.4
+yfinance=0.2.26
+fredapi=0.5.1
+pre-commit=3.3.3

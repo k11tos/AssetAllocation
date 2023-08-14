@@ -3,6 +3,7 @@
 Get portfolio
 """
 
+import asyncio
 import logging
 import sys
 
@@ -279,7 +280,9 @@ def print_info_message(message_string):
     chat_id = telegram_account["chat_id"]
 
     try:
-        telegram_bot.sendMessage(chat_id=chat_id, text=message_string)
+        asyncio.run(
+            telegram_bot.sendMessage(chat_id=chat_id, text=message_string)
+        )
     except telegram.TelegramError as error:
         LOGGER.error("Failed to send Telegram message: %s", str(error))
     else:
