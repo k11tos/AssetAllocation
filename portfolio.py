@@ -12,7 +12,7 @@ import yfinance as yf
 from fredapi import Fred
 
 LOGGER = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 
 def get_lethargic_asset_allocation(sp500, unrate):
