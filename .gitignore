@@ -10,3 +10,4 @@ TOKEN.py
 *.csv
 portfolio.txt
 .idea
+run.sh
