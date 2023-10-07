@@ -3,7 +3,6 @@
 Get portfolio with original dual momentum, VAA and LAA
 """
 
-import asyncio
 import datetime
 import json
 
@@ -44,7 +43,7 @@ def main():
         today_price,
     ) = get_financial_data(" ".join(tickers))
 
-    asyncio.run(print_info_message(str(datetime.datetime.today().date())))
+    print_info_message(str(datetime.datetime.today().date()))
 
     baa = get_bold_asset_allocation(momentum_score, sma_12month, today_price)
     print_asset_allocation(baa, korean_etf, total_number_of_strategy, "<BAA>")
@@ -65,11 +64,9 @@ def print_asset_allocation(
     asset_allocation, korean_etf, total_number_of_strategy, strategy_name
 ):
     for key, value in asset_allocation.items():
-        asyncio.run(
-            print_info_message(
-                f"{strategy_name} {korean_etf[key]} : "
-                f"{round(value / total_number_of_strategy, 2)} %"
-            )
+        print_info_message(
+            f"{strategy_name} {korean_etf[key]} : "
+            f"{round(value / total_number_of_strategy, 2)} %"
         )
 
 

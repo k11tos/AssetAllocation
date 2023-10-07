@@ -269,7 +269,7 @@ def get_telegram_account(mode="information"):
     return telegram_account
 
 
-async def print_info_message(message_string):
+def print_info_message(message_string):
     """
     Print info message by writing log or sending telegram messenger
     :param message_string: the message to print
@@ -279,7 +279,14 @@ async def print_info_message(message_string):
     telegram_bot = telegram_account["bot"]
     chat_id = telegram_account["chat_id"]
 
-    await telegram_bot.sendMessage(chat_id=chat_id, text=message_string)
+    try:
+        asyncio.run(
+            telegram_bot.sendMessage(chat_id=chat_id, text=message_string)
+        )
+    except telegram.TelegramError as error:
+        LOGGER.error("Failed to send Telegram message: %s", str(error))
+    else:
+        LOGGER.info(message_string)
 
 
 def get_financial_data(tickers):
