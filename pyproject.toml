@@ -1,8 +1,15 @@
+[project]
+name = "asset-allocation"
+version = "0.1.0"
+dependencies = [
+    "python-dotenv>=1.1.1",
+]          # uv가 여기에 항목을 채웁니다
+requires-python = ">=3.12"
 [tool.black]
 line-length = 79
-target-version = ['py36']
+target-version = ['py311']          # ← 기존 'py36'에서 업그레이드
 include = '\.pyi?$'
-exclude = '''
+extend-exclude = '''                # ← 기본 exclude에 추가로 합산
 /(
     \.git
   | \.hg
@@ -15,7 +22,8 @@ exclude = '''
   | dist
 )/
 '''
+
 [tool.isort]
 profile = "black"
-multi_line_output = 3
-py_version = 36
+py_version = 311                    # ← 기존 36 → 312
+multi_line_output = 3               # (black 프로필에 포함되지만 명시 유지)

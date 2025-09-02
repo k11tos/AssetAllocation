@@ -5,21 +5,39 @@ Get portfolio
 
 import asyncio
 import logging
+import os
 import sys
+from typing import Dict, Tuple
 
 import telegram
 import yfinance as yf
+from dotenv import load_dotenv
 from fredapi import Fred
+
+# Load environment variables
+load_dotenv()
 
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING)
 
+# Constants for time periods (in trading days)
+TRADING_DAYS_12_MONTHS = 252
+TRADING_DAYS_6_MONTHS = 126
+TRADING_DAYS_3_MONTHS = 63
+TRADING_DAYS_1_MONTH = 21
 
-def get_lethargic_asset_allocation(sp500, unrate):
+# Momentum score weights
+MOMENTUM_WEIGHTS = {"12_month": 1, "6_month": 2, "3_month": 4, "1_month": 12}
+
+
+def get_lethargic_asset_allocation(sp500, unrate) -> Dict[str, float]:
     """
-    Get ticker for LAA
+    Get ticker for LAA (Lethargic Asset Allocation)
+    :param sp500: S&P 500 time series data from FRED
+    :param unrate: Unemployment rate time series data from FRED
+    :return: Dictionary with asset allocation percentages
     """
-    laa = {"IWD": 25, "GLD": 25, "IEF": 25}
+    laa = {"VTV": 25, "GLD": 25, "IEF": 25}
 
     sp500_average_200days = sp500.rolling(138).mean().iloc[-1]
     unrate_average_12months = unrate.rolling(12).mean().iloc[-1]
@@ -43,30 +61,40 @@ def get_lethargic_asset_allocation(sp500, unrate):
     return laa
 
 
-def get_original_dual_momentum(profit_12month):
+def get_original_dual_momentum(
+    profit_12month: Dict[str, float]
+) -> Dict[str, float]:
     """
     Get ticker for original dual momentum
+    :param profit_12month: Dictionary with 12-month profit data
+    :return: Dictionary with asset allocation percentages
     """
     odm = {}
 
     LOGGER.debug("SPY 12 months average: %s", round(profit_12month["SPY"], 3))
     LOGGER.debug("BIL 12 months average: %s", round(profit_12month["BIL"], 3))
-    LOGGER.debug("EFA 12 months average: %s", round(profit_12month["EFA"], 3))
+    LOGGER.debug(
+        "IEFA 12 months average: %s", round(profit_12month["IEFA"], 3)
+    )
 
     if profit_12month["SPY"] > profit_12month["BIL"]:
-        if profit_12month["SPY"] >= profit_12month["EFA"]:
+        if profit_12month["SPY"] >= profit_12month["IEFA"]:
             odm["SPY"] = 100
         else:
-            odm["EFA"] = 100
+            odm["IEFA"] = 100
     else:
         odm["AGG"] = 100
 
     return odm
 
 
-def get_vigilant_asset_allocation(momentum_score):
+def get_vigilant_asset_allocation(
+    momentum_score: Dict[str, float]
+) -> Dict[str, float]:
     """
-    Get ticker for VAA
+    Get ticker for VAA (Vigilant Asset Allocation)
+    :param momentum_score: Dictionary with momentum scores
+    :return: Dictionary with asset allocation percentages
     """
     vaa = {}
 
@@ -75,7 +103,7 @@ def get_vigilant_asset_allocation(momentum_score):
         LOGGER.debug("%s momentum score: %s", ticker, round(score, 3))
 
     if all(score >= 0 for score in momentum_score.values()):
-        attackers = ["SPY", "EFA", "EEM", "AGG"]
+        attackers = ["SPY", "IEFA", "IEMG", "AGG"]
         attacker_ticker = max(attackers, key=lambda x: momentum_score[x])
         vaa[attacker_ticker] = 100
     else:
@@ -86,9 +114,17 @@ def get_vigilant_asset_allocation(momentum_score):
     return vaa
 
 
-def get_bold_asset_allocation(momentum_score, sma_12month, today_price):
+def get_bold_asset_allocation(
+    momentum_score: Dict[str, float],
+    sma_12month: Dict[str, float],
+    today_price: Dict[str, float],
+) -> Dict[str, float]:
     """
-    Get ticker for BAA : 784
+    Get ticker for BAA (Bold Asset Allocation)
+    :param momentum_score: Dictionary with momentum scores
+    :param sma_12month: Dictionary with 12-month moving averages
+    :param today_price: Dictionary with current prices
+    :return: Dictionary with asset allocation percentages
     """
     baa = {}
 
@@ -97,7 +133,7 @@ def get_bold_asset_allocation(momentum_score, sma_12month, today_price):
         attacker_momentum_score = {
             ticker: score
             for ticker, score in momentum_score.items()
-            if ticker in ["QQQ", "EFA", "EEM", "AGG"]
+            if ticker in ["QQQ", "IEFA", "IEMG", "AGG"]
         }
         top_attacker = max(
             attacker_momentum_score, key=attacker_momentum_score.get
@@ -127,9 +163,14 @@ def get_bold_asset_allocation(momentum_score, sma_12month, today_price):
     return baa
 
 
-def get_modified_dual_momentum(profit_12month, profit_6month):
+def get_modified_dual_momentum(
+    profit_12month: Dict[str, float], profit_6month: Dict[str, float]
+) -> Dict[str, float]:
     """
-    Get ticker for MDM : 825
+    Get ticker for MDM (Modified Dual Momentum)
+    :param profit_12month: Dictionary with 12-month profit data
+    :param profit_6month: Dictionary with 6-month profit data
+    :return: Dictionary with asset allocation percentages
     """
     mdm = {}
 
@@ -137,7 +178,7 @@ def get_modified_dual_momentum(profit_12month, profit_6month):
         "SPY 12 months average: %s", str(round(profit_12month["SPY"], 3))
     )
     LOGGER.debug(
-        "EFA 12 months average: %s", str(round(profit_12month["EFA"], 3))
+        "IEFA 12 months average: %s", str(round(profit_12month["IEFA"], 3))
     )
 
     bonds = ["SHY", "IEF", "TLT", "TIP", "LQD", "HYG", "BWX", "EMB"]
@@ -146,20 +187,24 @@ def get_modified_dual_momentum(profit_12month, profit_6month):
             "%s 6 months average: %s", bond, str(round(profit_6month[bond], 3))
         )
 
-    if profit_12month["SPY"] > 0 or profit_12month["EFA"] > 0:
-        if profit_12month["SPY"] >= profit_12month["EFA"]:
+    if profit_12month["SPY"] > 0 or profit_12month["IEFA"] > 0:
+        if profit_12month["SPY"] >= profit_12month["IEFA"]:
             mdm["SPY"] = 100
         else:
-            mdm["EFA"] = 100
+            mdm["IEFA"] = 100
     else:
         mdm = get_bond_dynamic_asset_allocation(profit_6month)
 
     return mdm
 
 
-def get_bond_dynamic_asset_allocation(profit_6month):
+def get_bond_dynamic_asset_allocation(
+    profit_6month: Dict[str, float]
+) -> Dict[str, float]:
     """
-    Get ticker for BDAA : 410
+    Get ticker for BDAA (Bond Dynamic Asset Allocation)
+    :param profit_6month: Dictionary with 6-month profit data
+    :return: Dictionary with asset allocation percentages
     """
     bdaa = {}
 
@@ -191,17 +236,21 @@ def get_bond_dynamic_asset_allocation(profit_6month):
     return bdaa
 
 
-def get_hybrid_asset_allocation(momentum_score_simple):
+def get_hybrid_asset_allocation(
+    momentum_score_simple: Dict[str, float]
+) -> Dict[str, float]:
     """
-    Get ticker for HAA : 926
+    Get ticker for HAA (Hybrid Asset Allocation)
+    :param momentum_score_simple: Dictionary with simple momentum scores
+    :return: Dictionary with asset allocation percentages
     """
     haa = {}
 
     attacker_dict = {
         "SPY": momentum_score_simple["SPY"],
         "IWM": momentum_score_simple["IWM"],
-        "VEA": momentum_score_simple["VEA"],
-        "VWO": momentum_score_simple["VWO"],
+        "IEFA": momentum_score_simple["IEFA"],
+        "IEMG": momentum_score_simple["IEMG"],
         "TLT": momentum_score_simple["TLT"],
         "IEF": momentum_score_simple["IEF"],
         "PDBC": momentum_score_simple["PDBC"],
@@ -222,54 +271,73 @@ def get_hybrid_asset_allocation(momentum_score_simple):
     return haa
 
 
-def get_fred_account():
+def get_fred_account() -> Fred:
     """
     Initialize and return fred account
     """
-    fred_account = None
+    api_key = os.getenv("FRED_API_KEY")
 
-    with open("portfolio.txt", encoding="utf-8") as file_descriptor:
-        lines = file_descriptor.readlines()
-        api_key = lines[0].strip()
+    # Fallback to portfolio.txt if environment variable is not set
+    if not api_key:
+        try:
+            with open("portfolio.txt", encoding="utf-8") as file_descriptor:
+                lines = file_descriptor.readlines()
+                api_key = lines[0].strip()
+        except FileNotFoundError:
+            LOGGER.error(
+                "Neither FRED_API_KEY environment variable nor "
+                "portfolio.txt file found."
+            )
+            sys.exit(1)
+
+    try:
         fred_account = Fred(api_key=api_key)
         LOGGER.debug("Using FRED API is okay.")
-
-    if fred_account is None:
-        LOGGER.error("Failed to initialize the FRED account.")
-        sys.exit()
-
-    return fred_account
+        return fred_account
+    except Exception as e:
+        LOGGER.error("Failed to initialize the FRED account: %s", str(e))
+        sys.exit(1)
 
 
-def get_telegram_account(mode="information"):
+def get_telegram_account(mode: str = "information") -> Dict:
     """
     Initialize and return telegram account
     """
+    api_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
-    with open("portfolio.txt", encoding="utf-8") as file_descriptor:
-        lines = file_descriptor.readlines()
-        api_token = lines[1].strip()
-        chat_id = lines[2].strip()
+    # Fallback to portfolio.txt if environment variables are not set
+    if not api_token or not chat_id:
+        try:
+            with open("portfolio.txt", encoding="utf-8") as file_descriptor:
+                lines = file_descriptor.readlines()
+                api_token = lines[1].strip()
+                chat_id = lines[2].strip()
+        except (FileNotFoundError, IndexError):
+            LOGGER.error(
+                "Neither environment variables nor portfolio.txt file "
+                "found for Telegram configuration."
+            )
+            sys.exit(1)
 
+    try:
         if mode == "information":
             bot = telegram.Bot(api_token)
         elif mode == "conversation":
             bot = telegram.ext.Updater(token=api_token, use_context=True)
         else:
             LOGGER.error("Invalid mode for telegram bot")
-            sys.exit()
+            sys.exit(1)
 
         telegram_account = {"bot": bot, "chat_id": chat_id}
         LOGGER.debug("Using telegram API is okay.")
-
-    if telegram_account is None:
-        LOGGER.error("Failed to initialize the telegram account.")
-        sys.exit()
-
-    return telegram_account
+        return telegram_account
+    except Exception as e:
+        LOGGER.error("Failed to initialize the telegram account: %s", str(e))
+        sys.exit(1)
 
 
-def print_info_message(message_string):
+def print_info_message(message_string: str) -> None:
     """
     Print info message by writing log or sending telegram messenger
     :param message_string: the message to print
@@ -289,11 +357,21 @@ def print_info_message(message_string):
         LOGGER.info(message_string)
 
 
-def get_financial_data(tickers):
+def get_financial_data(
+    tickers: str,
+) -> Tuple[
+    Dict[str, float],
+    Dict[str, float],
+    Dict[str, float],
+    Dict[str, float],
+    Dict[str, float],
+    Dict[str, float],
+]:
     """
-    Get financial data
-    :param
-    :return:
+    Get financial data for given tickers
+    :param tickers: space-separated string of ticker symbols
+    :return: tuple of (momentum_score, momentum_score_simple,
+                       profit_12month, profit_6month, sma_12month, today_price)
     """
     daily_price = {}
     momentum_score = {}
@@ -305,31 +383,56 @@ def get_financial_data(tickers):
     sma_12month = {}
     today_price = {}
 
-    data = yf.download(
-        tickers=tickers, period="1y", interval="1d", group_by="ticker"
-    ).dropna()
+    try:
+        data = yf.download(
+            tickers=tickers,
+            period="1y",
+            interval="1d",
+            group_by="ticker",
+            auto_adjust=False,
+        ).dropna()
+    except Exception as e:
+        LOGGER.error("Failed to download financial data: %s", str(e))
+        raise ValueError(f"Failed to download financial data: {str(e)}")
 
-    working_day = len(data["SPY"]["Adj Close"])
+    # Check if data is available
+    if len(data) == 0:
+        raise ValueError("No data available for the specified tickers")
+
+    # Check if SPY data is available (used as reference)
+    if ("SPY", "Adj Close") not in data.columns:
+        raise ValueError("SPY data not available - required for calculations")
+
+    # Get working days from SPY data (use Adj Close for adjusted prices)
+    spy_adj_close = data[("SPY", "Adj Close")]
+    working_day = len(spy_adj_close)
 
     for ticker in tickers.split():
-        daily_price[ticker] = data[ticker]["Adj Close"]
+        if (ticker, "Adj Close") not in data.columns:
+            LOGGER.warning("No data available for ticker: %s", ticker)
+            continue
+        daily_price[ticker] = data[(ticker, "Adj Close")]
         profit_12month[ticker] = (
-            daily_price[ticker][-1] - daily_price[ticker][-working_day]
-        ) / daily_price[ticker][-1]
+            daily_price[ticker].iloc[-1]
+            - daily_price[ticker].iloc[-working_day]
+        ) / daily_price[ticker].iloc[-1]
         profit_6month[ticker] = (
-            daily_price[ticker][-1] - daily_price[ticker][-126]
-        ) / daily_price[ticker][-1]
+            daily_price[ticker].iloc[-1]
+            - daily_price[ticker].iloc[-TRADING_DAYS_6_MONTHS]
+        ) / daily_price[ticker].iloc[-1]
         profit_3month[ticker] = (
-            daily_price[ticker][-1] - daily_price[ticker][-63]
-        ) / daily_price[ticker][-1]
+            daily_price[ticker].iloc[-1]
+            - daily_price[ticker].iloc[-TRADING_DAYS_3_MONTHS]
+        ) / daily_price[ticker].iloc[-1]
         profit_1month[ticker] = (
-            daily_price[ticker][-1] - daily_price[ticker][-21]
-        ) / daily_price[ticker][-1]
+            daily_price[ticker].iloc[-1]
+            - daily_price[ticker].iloc[-TRADING_DAYS_1_MONTH]
+        ) / daily_price[ticker].iloc[-1]
         momentum_score[ticker] = (
-            profit_12month[ticker] * 1
-            + profit_6month[ticker] * 2
-            + profit_3month[ticker] * 4
-            + profit_1month[ticker] * 12
+            profit_12month[ticker] * MOMENTUM_WEIGHTS["12_month"]
+            + profit_6month[ticker] * MOMENTUM_WEIGHTS["6_month"]
+            + profit_3month[ticker] * MOMENTUM_WEIGHTS["3_month"]
+            + profit_1month[ticker] * MOMENTUM_WEIGHTS["1_month"]
         )
         momentum_score_simple[ticker] = (
             profit_12month[ticker]
@@ -338,7 +441,7 @@ def get_financial_data(tickers):
             + profit_1month[ticker]
         )
         sma_12month[ticker] = daily_price[ticker].mean()
-        today_price[ticker] = daily_price[ticker][-1]
+        today_price[ticker] = daily_price[ticker].iloc[-1]
 
     return (
         momentum_score,
