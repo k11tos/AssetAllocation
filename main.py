@@ -9,13 +9,8 @@ import logging
 from typing import Dict
 
 from portfolio import (
-    get_bold_asset_allocation,
-    get_bond_dynamic_asset_allocation,
     get_financial_data,
-    get_fred_account,
     get_hybrid_asset_allocation,
-    get_lethargic_asset_allocation,
-    get_modified_dual_momentum,
     print_info_message,
 )
 
@@ -42,16 +37,14 @@ def main() -> None:
     #     )
     #     sp500 = None
     #     unrate = None
-    with open("korean_etf.json", "r", encoding="utf-8") as file:
-        korean_etf = json.load(file)
+    with open("us_etf_tickers.json", "r", encoding="utf-8") as file:
+        tickers = json.load(file)
 
-    if korean_etf is None:
-        raise ValueError
+    if not tickers:
+        raise ValueError("No tickers found in us_etf_tickers.json")
 
-    # korean_etf를 사용하지 않고 미국 ETF 데이터를 사용하기 위해,
-    # korean_etf의 key와 value를 대체합니다.
-    korean_etf = {key: key for key in korean_etf.keys()}
-    tickers = korean_etf.keys()
+    # tickers를 딕셔너리로 변환 (출력용)
+    etf_descriptions = {ticker: ticker for ticker in tickers}
 
     (
         momentum_score,
@@ -68,27 +61,29 @@ def main() -> None:
     #     momentum_score, sma_12month, today_price
     # )
     # print_asset_allocation(
-    #     baa, korean_etf, total_number_of_strategy, "<BAA>"
+    #     baa, etf_descriptions, total_number_of_strategy, "<BAA>"
     # )
 
     # mdm = get_modified_dual_momentum(profit_12month, profit_6month)
     # print_asset_allocation(
-    #     mdm, korean_etf, total_number_of_strategy, "<MDM>"
+    #     mdm, etf_descriptions, total_number_of_strategy, "<MDM>"
     # )
 
     # bdaa = get_bond_dynamic_asset_allocation(profit_6month)
     # print_asset_allocation(
-    #     bdaa, korean_etf, total_number_of_strategy, "<BDAA>"
+    #     bdaa, etf_descriptions, total_number_of_strategy, "<BDAA>"
     # )
 
     haa = get_hybrid_asset_allocation(momentum_score_simple)
-    print_asset_allocation(haa, korean_etf, total_number_of_strategy, "<HAA>")
+    print_asset_allocation(
+        haa, etf_descriptions, total_number_of_strategy, "<HAA>"
+    )
 
     # # LAA strategy requires FRED data
     # if sp500 is not None and unrate is not None:
     #     laa = get_lethargic_asset_allocation(sp500, unrate)
     #     print_asset_allocation(
-    #         laa, korean_etf, total_number_of_strategy, "<LAA>"
+    #         laa, etf_descriptions, total_number_of_strategy, "<LAA>"
     #     )
     # else:
     #     LOGGER.info("Skipping LAA strategy due to missing FRED data")
@@ -96,21 +91,21 @@ def main() -> None:
 
 def print_asset_allocation(
     asset_allocation: Dict[str, float],
-    korean_etf: Dict[str, str],
+    etf_descriptions: Dict[str, str],
     total_number_of_strategy: int,
     strategy_name: str,
 ) -> None:
     """
     Print asset allocation results
     :param asset_allocation: Dictionary with asset allocation
-    :param korean_etf: Dictionary mapping tickers to descriptions
+    :param etf_descriptions: Dictionary mapping tickers to descriptions
     :param total_number_of_strategy: Total number of strategies
     :param strategy_name: Name of the strategy
     :return: None
     """
     for key, value in asset_allocation.items():
         print_info_message(
-            f"{strategy_name} {korean_etf[key]}: "
+            f"{strategy_name} {etf_descriptions[key]}: "
             f"{round(value / total_number_of_strategy, 2)} %"
         )
 
