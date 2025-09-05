@@ -271,6 +271,40 @@ def get_hybrid_asset_allocation(
     return haa
 
 
+def get_korean_all_weather_allocation() -> Dict[str, float]:
+    """
+    Get Korean All-Weather strategy allocation based on current month
+    월말에 다음달의 전략을 수행하는 식으로 비율을 가져감 (4월 말에는 5월 전략)
+    :return: Dictionary with asset allocation percentages
+    """
+    import datetime
+
+    # 현재 날짜에서 다음 달을 계산
+    today = datetime.datetime.now()
+    next_month = today.month + 1 if today.month < 12 else 1
+
+    # 한국형 올웨더 전략 비율 (11~4월 vs 5~10월)
+    # 11~4월: 위험자산 중심, 5~10월: 안전자산 중심
+    if next_month in [11, 12, 1, 2, 3, 4]:  # 11~4월 전략
+        korean_all_weather = {
+            "TIGER S&P500": 25.0,
+            "KOSEF 200TR": 25.0,
+            "KODEX 골드선물(H)": 15.0,
+            "TIGER 미국채 10년 선물": 17.5,
+            "KOSEF 국고채 10년": 17.5,
+        }
+    else:  # 5~10월 전략 (안전자산 중심)
+        korean_all_weather = {
+            "TIGER S&P500": 10.0,
+            "KOSEF 200TR": 10.0,
+            "KODEX 골드선물(H)": 15.0,
+            "TIGER 미국채 10년 선물": 32.5,
+            "KOSEF 국고채 10년": 32.5,
+        }
+
+    return korean_all_weather
+
+
 def get_fred_account() -> Fred:
     """
     Initialize and return fred account
