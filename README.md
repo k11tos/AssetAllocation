@@ -13,6 +13,35 @@ A Python application for implementing various asset allocation strategies includ
 
 ## Installation
 
+### Option 1: Using Docker (Recommended)
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd AssetAllocation
+```
+
+2. Build and run with Docker:
+```bash
+# Build the optimized multi-stage image
+docker build -t asset-allocation .
+
+# Run the container
+docker run --rm asset-allocation
+
+# Or use docker-compose
+docker-compose up
+```
+
+**Docker Image Features:**
+- 🐧 **Alpine Linux**: Lightweight base image (~386MB)
+- 🏗️ **Multi-stage build**: Optimized for size and security
+- 🔒 **Non-root user**: Enhanced security
+- 🏥 **Health checks**: Built-in monitoring
+- 📦 **Minimal dependencies**: Only runtime packages included
+
+### Option 2: Local Installation
+
 1. Clone the repository:
 ```bash
 git clone <repository-url>
@@ -45,8 +74,29 @@ TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 
 ## Usage
 
-Run the main application:
+### Docker Usage
+
 ```bash
+# Run once
+docker run --rm asset-allocation
+
+# Run with environment variables
+docker run --rm -e FRED_API_KEY=your_key asset-allocation
+
+# Run with docker-compose (includes environment file)
+docker-compose up
+
+# Run in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
+
+### Local Usage
+
+```bash
+# Run the main application
 uv run main.py
 ```
 

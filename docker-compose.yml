@@ -1,0 +1,10 @@
+services:
+  asset-allocation:
+    build: .
+    container_name: asset-allocation-app
+    environment:
+      # FRED API Key (optional)
+      - FRED_API_KEY=${FRED_API_KEY:-}
+      # Telegram Bot Configuration (optional)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
