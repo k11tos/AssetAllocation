@@ -1,10 +1,41 @@
 [project]
 name = "asset-allocation"
 version = "0.1.0"
-dependencies = [
-    "python-dotenv>=1.1.1",
-]          # uv가 여기에 항목을 채웁니다
+description = "Asset allocation strategies with multiple portfolio management approaches"
+authors = [
+    {name = "Asset Allocation Team", email = "team@example.com"}
+]
+readme = "README.md"
 requires-python = ">=3.12"
+dependencies = [
+    "python-telegram-bot>=22.3",
+    "yfinance>=0.2.65",
+    "fredapi>=0.5.2",
+    "python-dotenv>=1.1.1",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "pre-commit>=4.3.0",
+]
+
+[project.scripts]
+asset-allocation = "main:main"
+asset-cli = "cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["strategies", "services", "utils"]
 [tool.black]
 line-length = 79
 target-version = ['py311']          # ← 기존 'py36'에서 업그레이드
@@ -27,3 +58,10 @@ extend-exclude = '''                # ← 기본 exclude에 추가로 합산
 profile = "black"
 py_version = 311                    # ← 기존 36 → 312
 multi_line_output = 3               # (black 프로필에 포함되지만 명시 유지)
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-cov>=6.2.1",
+    "pytest-mock>=3.15.0",
+]

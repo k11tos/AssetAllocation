@@ -1,0 +1,303 @@
+#!/usr/bin/python3
+"""
+Data service for financial data retrieval
+"""
+
+import logging
+from typing import Any, Dict, Tuple
+
+import yfinance as yf
+from fredapi import Fred
+
+from config import (
+    API_CONFIG,
+    YFINANCE_CONFIG,
+    get_momentum_weights_dict,
+    get_trading_days_dict,
+)
+from utils.cache_manager import CacheManager
+from utils.performance_monitor import monitor_performance
+from utils.security import InputValidator, SecurityManager, log_security_event
+
+LOGGER = logging.getLogger(__name__)
+
+
+class DataService:
+    """금융 데이터 서비스"""
+
+    def __init__(self, cache_ttl_hours: int = 1):
+        self.fred_account = None
+        self.cache_manager = CacheManager(ttl_hours=cache_ttl_hours)
+        self.security_manager = SecurityManager()
+        self._initialize_fred()
+
+    def _initialize_fred(self) -> None:
+        """FRED 계정을 초기화합니다."""
+        try:
+            api_key = API_CONFIG.FRED_API_KEY
+
+            # Fallback to portfolio.txt if environment variable is not set
+            if not api_key:
+                try:
+                    if not InputValidator.validate_file_path(
+                        API_CONFIG.FALLBACK_FILE
+                    ):
+                        raise ValueError("Invalid fallback file path")
+
+                    with open(
+                        API_CONFIG.FALLBACK_FILE, encoding="utf-8"
+                    ) as file_descriptor:
+                        lines = file_descriptor.readlines()
+                        api_key = lines[0].strip()
+                except FileNotFoundError:
+                    LOGGER.error(
+                        f"Neither FRED_API_KEY environment variable nor "
+                        f"{API_CONFIG.FALLBACK_FILE} file found."
+                    )
+                    raise
+
+            # API 키 형식 검증
+            if not self.security_manager.validate_api_key_format(
+                api_key, "fred"
+            ):
+                log_security_event(
+                    "INVALID_API_KEY", "Invalid FRED API key format", "ERROR"
+                )
+                raise ValueError("Invalid FRED API key format")
+
+            self.fred_account = Fred(api_key=api_key)
+            LOGGER.debug("FRED API initialized successfully")
+            log_security_event(
+                "API_INITIALIZED", "FRED API initialized successfully"
+            )
+
+        except Exception as e:
+            LOGGER.error(f"Failed to initialize FRED account: {str(e)}")
+            log_security_event(
+                "API_INIT_FAILED",
+                f"FRED API initialization failed: {str(e)}",
+                "ERROR",
+            )
+            raise
+
+    @monitor_performance("get_financial_data")
+    def get_financial_data(
+        self, tickers: str
+    ) -> Tuple[
+        Dict[str, float],
+        Dict[str, float],
+        Dict[str, float],
+        Dict[str, float],
+        Dict[str, float],
+        Dict[str, float],
+    ]:
+        """
+        주어진 티커들의 금융 데이터를 가져옵니다.
+        캐싱을 통해 성능을 최적화합니다.
+
+        Args:
+            tickers: 공백으로 구분된 티커 심볼 문자열
+
+        Returns:
+            (momentum_score, momentum_score_simple, profit_12month,
+             profit_6month, sma_12month, today_price) 튜플
+        """
+        # 입력 검증
+        if not tickers or not isinstance(tickers, str):
+            raise ValueError("Invalid tickers input")
+
+        # 티커 목록 검증
+        ticker_list = tickers.split()
+        valid_tickers = self.security_manager.validate_ticker_list(ticker_list)
+
+        if not valid_tickers:
+            raise ValueError("No valid tickers provided")
+
+        if len(valid_tickers) != len(ticker_list):
+            log_security_event(
+                "INVALID_TICKERS",
+                f"Some tickers were invalid: {ticker_list}",
+                "WARNING",
+            )
+
+        # 검증된 티커로 다시 조합
+        validated_tickers = " ".join(valid_tickers)
+
+        # 캐시에서 데이터 확인
+        cache_key_params = {
+            "period": YFINANCE_CONFIG.PERIOD,
+            "interval": YFINANCE_CONFIG.INTERVAL,
+            "auto_adjust": YFINANCE_CONFIG.AUTO_ADJUST,
+        }
+
+        cached_data = self.cache_manager.get(
+            validated_tickers, **cache_key_params
+        )
+        if cached_data is not None:
+            LOGGER.info(f"Using cached data for tickers: {validated_tickers}")
+            return cached_data
+
+        LOGGER.info(f"Fetching fresh data for tickers: {validated_tickers}")
+        data = self._fetch_financial_data(validated_tickers)
+
+        # 캐시에 저장
+        self.cache_manager.set(validated_tickers, data, **cache_key_params)
+
+        return data
+
+    def _fetch_financial_data(
+        self, tickers: str
+    ) -> Tuple[
+        Dict[str, float],
+        Dict[str, float],
+        Dict[str, float],
+        Dict[str, float],
+        Dict[str, float],
+        Dict[str, float],
+    ]:
+        """
+        실제 금융 데이터를 가져옵니다.
+
+        Args:
+            tickers: 공백으로 구분된 티커 심볼 문자열
+
+        Returns:
+            (momentum_score, momentum_score_simple, profit_12month,
+             profit_6month, sma_12month, today_price) 튜플
+        """
+        daily_price = {}
+        momentum_score = {}
+        momentum_score_simple = {}
+        profit_12month = {}
+        profit_6month = {}
+        profit_3month = {}
+        profit_1month = {}
+        sma_12month = {}
+        today_price = {}
+
+        try:
+            data = yf.download(
+                tickers=tickers,
+                period=YFINANCE_CONFIG.PERIOD,
+                interval=YFINANCE_CONFIG.INTERVAL,
+                group_by="ticker",
+                auto_adjust=YFINANCE_CONFIG.AUTO_ADJUST,
+            ).dropna()
+        except Exception as e:
+            LOGGER.error(f"Failed to download financial data: {str(e)}")
+            raise ValueError(f"Failed to download financial data: {str(e)}")
+
+        # 데이터 유효성 검사
+        if len(data) == 0:
+            raise ValueError("No data available for the specified tickers")
+
+        if ("SPY", "Adj Close") not in data.columns:
+            raise ValueError(
+                "SPY data not available - required for calculations"
+            )
+
+        # SPY 데이터를 기준으로 거래일 수 계산
+        spy_adj_close = data[("SPY", "Adj Close")]
+        working_day = len(spy_adj_close)
+
+        # 거래일 상수 가져오기
+        trading_days = get_trading_days_dict()
+        momentum_weights = get_momentum_weights_dict()
+
+        # 각 티커에 대해 데이터 처리
+        for ticker in tickers.split():
+            if (ticker, "Adj Close") not in data.columns:
+                LOGGER.warning(f"No data available for ticker: {ticker}")
+                continue
+
+            daily_price[ticker] = data[(ticker, "Adj Close")]
+
+            # 수익률 계산
+            profit_12month[ticker] = (
+                daily_price[ticker].iloc[-1]
+                - daily_price[ticker].iloc[-working_day]
+            ) / daily_price[ticker].iloc[-1]
+
+            profit_6month[ticker] = (
+                daily_price[ticker].iloc[-1]
+                - daily_price[ticker].iloc[-trading_days["6_month"]]
+            ) / daily_price[ticker].iloc[-1]
+
+            profit_3month[ticker] = (
+                daily_price[ticker].iloc[-1]
+                - daily_price[ticker].iloc[-trading_days["3_month"]]
+            ) / daily_price[ticker].iloc[-1]
+
+            profit_1month[ticker] = (
+                daily_price[ticker].iloc[-1]
+                - daily_price[ticker].iloc[-trading_days["1_month"]]
+            ) / daily_price[ticker].iloc[-1]
+
+            # 모멘텀 스코어 계산
+            momentum_score[ticker] = (
+                profit_12month[ticker] * momentum_weights["12_month"]
+                + profit_6month[ticker] * momentum_weights["6_month"]
+                + profit_3month[ticker] * momentum_weights["3_month"]
+                + profit_1month[ticker] * momentum_weights["1_month"]
+            )
+
+            momentum_score_simple[ticker] = (
+                profit_12month[ticker]
+                + profit_6month[ticker]
+                + profit_3month[ticker]
+                + profit_1month[ticker]
+            )
+
+            sma_12month[ticker] = daily_price[ticker].mean()
+            today_price[ticker] = daily_price[ticker].iloc[-1]
+
+        LOGGER.info(
+            f"Successfully processed financial data for "
+            f"{len(tickers.split())} tickers"
+        )
+
+        return (
+            momentum_score,
+            momentum_score_simple,
+            profit_12month,
+            profit_6month,
+            sma_12month,
+            today_price,
+        )
+
+    @monitor_performance("get_fred_data")
+    def get_fred_data(
+        self, series_id: str, start_date: str = None, end_date: str = None
+    ):
+        """
+        FRED에서 데이터를 가져옵니다.
+
+        Args:
+            series_id: FRED 시리즈 ID
+            start_date: 시작 날짜 (YYYY-MM-DD)
+            end_date: 종료 날짜 (YYYY-MM-DD)
+
+        Returns:
+            FRED 데이터 시리즈
+        """
+        try:
+            if self.fred_account is None:
+                raise ValueError("FRED account not initialized")
+
+            data = self.fred_account.get_series(
+                series_id, start_date, end_date
+            )
+            LOGGER.debug(f"Successfully retrieved FRED data for {series_id}")
+            return data
+
+        except Exception as e:
+            LOGGER.error(f"Failed to get FRED data for {series_id}: {str(e)}")
+            raise
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """캐시 통계를 반환합니다."""
+        return self.cache_manager.get_cache_stats()
+
+    def clear_cache(self, older_than_hours: int = 24) -> int:
+        """오래된 캐시를 정리합니다."""
+        return self.cache_manager.clear(older_than_hours)

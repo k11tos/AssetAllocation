@@ -1,5 +1,0 @@
-python-telegram-bot==22.3
-yfinance==0.2.65
-fredapi==0.5.2
-pre-commit==4.3.0
-python-dotenv==1.0.0

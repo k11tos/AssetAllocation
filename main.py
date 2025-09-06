@@ -6,41 +6,72 @@ Get portfolio with original dual momentum, VAA and LAA
 import datetime
 import json
 import logging
-from typing import Dict
+import sys
+from typing import Dict, Optional
 
+from config import STRATEGY_CONFIG, validate_config
 from portfolio import (
     get_financial_data,
     get_hybrid_asset_allocation,
     get_korean_all_weather_allocation,
     print_info_message,
 )
+from utils.performance_monitor import get_performance_monitor
+
+
+# 로깅 설정
+def setup_logging(log_level: str = "INFO") -> None:
+    """로깅 설정을 초기화합니다."""
+    numeric_level = getattr(logging, log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError(f"Invalid log level: {log_level}")
+
+    logging.basicConfig(
+        level=numeric_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler("logs/asset_allocation.log", encoding="utf-8"),
+        ],
+    )
+
 
 LOGGER = logging.getLogger(__name__)
 
 
-def main() -> None:
-    """
-    Main function
-    :return: None
-    """
-    total_number_of_strategy = 2
+def load_tickers(file_path: str = None) -> list:
+    """ETF 티커 목록을 로드합니다."""
+    if file_path is None:
+        file_path = STRATEGY_CONFIG.TICKER_FILE
 
-    with open("us_etf_tickers.json", "r", encoding="utf-8") as file:
-        tickers = json.load(file)
-
-    if not tickers:
-        raise ValueError("No tickers found in us_etf_tickers.json")
-
-    # tickers를 딕셔너리로 변환 (출력용)
-    etf_descriptions = {ticker: ticker for ticker in tickers}
-
-    print_info_message(str(datetime.datetime.today().date()))
-
-    # 한국형 올웨더 전략 (가격 데이터 불필요)
-    korean_all_weather = get_korean_all_weather_allocation()
-
-    # HAA 전략을 위한 가격 데이터 가져오기 (실패 시 기본값 사용)
     try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            tickers = json.load(file)
+
+        if not tickers:
+            raise ValueError(f"No tickers found in {file_path}")
+
+        LOGGER.info(
+            f"Successfully loaded {len(tickers)} tickers from {file_path}"
+        )
+        return tickers
+
+    except FileNotFoundError:
+        LOGGER.error(f"Ticker file not found: {file_path}")
+        raise
+    except json.JSONDecodeError as e:
+        LOGGER.error(f"Invalid JSON format in {file_path}: {str(e)}")
+        raise
+    except Exception as e:
+        LOGGER.error(f"Unexpected error loading tickers: {str(e)}")
+        raise
+
+
+def execute_haa_strategy(tickers: list) -> Optional[Dict[str, float]]:
+    """HAA 전략을 실행합니다."""
+    try:
+        LOGGER.info("Starting HAA strategy execution...")
+
         (
             momentum_score,
             momentum_score_simple,
@@ -50,21 +81,91 @@ def main() -> None:
             today_price,
         ) = get_financial_data(" ".join(tickers))
 
-        # HAA 전략
         haa = get_hybrid_asset_allocation(momentum_score_simple)
-        print_asset_allocation(
-            haa, etf_descriptions, total_number_of_strategy, "[HAA]"
+        LOGGER.info("HAA strategy executed successfully")
+        return haa
+
+    except ValueError as e:
+        LOGGER.error(f"Data validation error in HAA strategy: {str(e)}")
+        return None
+    except ConnectionError as e:
+        LOGGER.error(f"Network error in HAA strategy: {str(e)}")
+        return None
+    except Exception as e:
+        LOGGER.error(f"Unexpected error in HAA strategy: {str(e)}")
+        return None
+
+
+def main() -> None:
+    """
+    Main function
+    :return: None
+    """
+    # 설정 검증
+    if not validate_config():
+        LOGGER.error("Configuration validation failed")
+        sys.exit(1)
+
+    # 로깅 초기화
+    setup_logging(STRATEGY_CONFIG.LOG_LEVEL)
+
+    LOGGER.info("Starting asset allocation process...")
+
+    total_number_of_strategy = STRATEGY_CONFIG.TOTAL_STRATEGIES
+    successful_strategies = 0
+
+    try:
+        # 티커 로드
+        tickers = load_tickers()
+        etf_descriptions = {ticker: ticker for ticker in tickers}
+
+        # 현재 날짜 출력
+        current_date = datetime.datetime.today().date()
+        print_info_message(f"Asset Allocation Report - {current_date}")
+        LOGGER.info(f"Processing date: {current_date}")
+
+        # HAA 전략 실행
+        haa_result = execute_haa_strategy(tickers)
+        if haa_result:
+            print_asset_allocation(
+                haa_result, etf_descriptions, total_number_of_strategy, "[HAA]"
+            )
+            successful_strategies += 1
+        else:
+            LOGGER.warning("HAA strategy failed - skipping output")
+
+        # 한국형 올웨더 전략 (항상 실행)
+        try:
+            korean_all_weather = get_korean_all_weather_allocation()
+            print_asset_allocation(
+                korean_all_weather, None, total_number_of_strategy, "[KAW]"
+            )
+            successful_strategies += 1
+            LOGGER.info("Korean All-Weather strategy executed successfully")
+        except Exception as e:
+            LOGGER.error(f"Korean All-Weather strategy failed: {str(e)}")
+
+        # 실행 결과 요약
+        LOGGER.info(
+            f"Asset allocation process completed. "
+            f"{successful_strategies}/{total_number_of_strategy} "
+            f"strategies executed successfully"
         )
+
+        # 성능 모니터링 결과 출력
+        performance_monitor = get_performance_monitor()
+        performance_monitor.log_summary()
+
+        if successful_strategies == 0:
+            LOGGER.error(
+                "All strategies failed - no allocation recommendations "
+                "generated"
+            )
+            sys.exit(1)
 
     except Exception as e:
-        LOGGER.warning(
-            f"Failed to get financial data for HAA strategy: {str(e)}"
-        )
-
-    # 한국형 올웨더 전략 (HAA 성공/실패와 관계없이 항상 실행)
-    print_asset_allocation(
-        korean_all_weather, None, total_number_of_strategy, "[KAW]"
-    )
+        LOGGER.error(f"Critical error in main process: {str(e)}")
+        sys.exit(1)
 
 
 def print_asset_allocation(
