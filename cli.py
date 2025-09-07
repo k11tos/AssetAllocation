@@ -11,8 +11,13 @@ from typing import Any, Dict, Optional
 
 from main import main as run_main
 from portfolio import (
+    get_baa_allocation,
+    get_bdaa_allocation,
     get_hybrid_asset_allocation,
     get_korean_all_weather_allocation,
+    get_laa_allocation,
+    get_mdm_allocation,
+    get_vaa_allocation,
 )
 from services.data_service import DataService
 from utils.performance_monitor import get_performance_monitor
@@ -38,7 +43,7 @@ Examples:
     # 전략 선택
     parser.add_argument(
         "--strategy",
-        choices=["haa", "kaw", "all"],
+        choices=["haa", "kaw", "baa", "vaa", "laa", "bdaa", "mdm", "all"],
         default="all",
         help="실행할 전략 선택 (기본값: all)",
     )
@@ -170,6 +175,94 @@ def run_kaw_strategy() -> Optional[Dict[str, float]]:
         return None
 
 
+def run_baa_strategy(tickers: list) -> Optional[Dict[str, float]]:
+    """BAA 전략을 실행합니다."""
+    try:
+        data_service = DataService()
+        (
+            momentum_score,
+            momentum_score_simple,
+            profit_12month,
+            profit_6month,
+            sma_12month,
+            today_price,
+        ) = data_service.get_financial_data(" ".join(tickers))
+
+        return get_baa_allocation(momentum_score, sma_12month, today_price)
+    except Exception as e:
+        print(f"BAA strategy failed: {e}")
+        return None
+
+
+def run_vaa_strategy(tickers: list) -> Optional[Dict[str, float]]:
+    """VAA 전략을 실행합니다."""
+    try:
+        data_service = DataService()
+        (
+            momentum_score,
+            momentum_score_simple,
+            profit_12month,
+            profit_6month,
+            sma_12month,
+            today_price,
+        ) = data_service.get_financial_data(" ".join(tickers))
+
+        return get_vaa_allocation(momentum_score)
+    except Exception as e:
+        print(f"VAA strategy failed: {e}")
+        return None
+
+
+def run_laa_strategy() -> Optional[Dict[str, float]]:
+    """LAA 전략을 실행합니다."""
+    try:
+        data_service = DataService()
+        sp500 = data_service.get_fred_data("SP500")
+        unrate = data_service.get_fred_data("UNRATE")
+        return get_laa_allocation(sp500, unrate)
+    except Exception as e:
+        print(f"LAA strategy failed: {e}")
+        return None
+
+
+def run_bdaa_strategy(tickers: list) -> Optional[Dict[str, float]]:
+    """BDAA 전략을 실행합니다."""
+    try:
+        data_service = DataService()
+        (
+            momentum_score,
+            momentum_score_simple,
+            profit_12month,
+            profit_6month,
+            sma_12month,
+            today_price,
+        ) = data_service.get_financial_data(" ".join(tickers))
+
+        return get_bdaa_allocation(profit_6month)
+    except Exception as e:
+        print(f"BDAA strategy failed: {e}")
+        return None
+
+
+def run_mdm_strategy(tickers: list) -> Optional[Dict[str, float]]:
+    """MDM 전략을 실행합니다."""
+    try:
+        data_service = DataService()
+        (
+            momentum_score,
+            momentum_score_simple,
+            profit_12month,
+            profit_6month,
+            sma_12month,
+            today_price,
+        ) = data_service.get_financial_data(" ".join(tickers))
+
+        return get_mdm_allocation(profit_12month, profit_6month)
+    except Exception as e:
+        print(f"MDM strategy failed: {e}")
+        return None
+
+
 def main():
     """CLI 메인 함수"""
     parser = create_parser()
@@ -208,6 +301,25 @@ def main():
 
     if args.strategy in ["kaw", "all"]:
         results["KAW"] = run_kaw_strategy()
+
+    if args.strategy in ["baa", "all"]:
+        tickers = load_tickers(args.tickers or "us_etf_tickers.json")
+        results["BAA"] = run_baa_strategy(tickers)
+
+    if args.strategy in ["vaa", "all"]:
+        tickers = load_tickers(args.tickers or "us_etf_tickers.json")
+        results["VAA"] = run_vaa_strategy(tickers)
+
+    if args.strategy in ["laa", "all"]:
+        results["LAA"] = run_laa_strategy()
+
+    if args.strategy in ["bdaa", "all"]:
+        tickers = load_tickers(args.tickers or "us_etf_tickers.json")
+        results["BDAA"] = run_bdaa_strategy(tickers)
+
+    if args.strategy in ["mdm", "all"]:
+        tickers = load_tickers(args.tickers or "us_etf_tickers.json")
+        results["MDM"] = run_mdm_strategy(tickers)
 
     # 출력 형식에 따라 결과 출력
     if args.output == "json":

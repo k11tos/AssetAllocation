@@ -155,6 +155,28 @@ class LAAConfig:
 
 
 @dataclass
+class BDAAConfig:
+    """BDAA (Bond Dynamic Asset Allocation) 전략 설정"""
+
+    BOND_TICKERS: List[str] = None
+    TOP_BONDS_COUNT: int = 3
+    BOND_ALLOCATION_RATIO: float = 100.0 / 3
+
+    def __post_init__(self):
+        if self.BOND_TICKERS is None:
+            self.BOND_TICKERS = [
+                "SHY",
+                "IEF",
+                "TLT",
+                "TIP",
+                "LQD",
+                "HYG",
+                "BWX",
+                "EMB",
+            ]
+
+
+@dataclass
 class MDMConfig:
     """MDM (Modified Dual Momentum) 전략 설정"""
 
@@ -206,6 +228,7 @@ HAA_CONFIG = HAAConfig()
 VAA_CONFIG = VAAConfig()
 BAA_CONFIG = BAAConfig()
 LAA_CONFIG = LAAConfig()
+BDAA_CONFIG = BDAAConfig()
 MDM_CONFIG = MDMConfig()
 API_CONFIG = APIConfig()
 YFINANCE_CONFIG = YFinanceConfig()

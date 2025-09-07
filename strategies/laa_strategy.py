@@ -36,12 +36,19 @@ class LAAStrategy(BaseStrategy):
         laa = LAA_CONFIG.BASE_ALLOCATION.copy()
 
         # S&P 500 200일 이동평균 계산
+        sp500_rolling = sp500.rolling(LAA_CONFIG.SP500_MA_DAYS).mean()
         sp500_average_200days = (
-            sp500.rolling(LAA_CONFIG.SP500_MA_DAYS).mean().iloc[-1]
+            sp500_rolling.dropna().iloc[-1]
+            if not sp500_rolling.dropna().empty
+            else sp500.iloc[-1]
         )
+
         # 실업률 12개월 이동평균 계산
+        unrate_rolling = unrate.rolling(LAA_CONFIG.UNRATE_MA_MONTHS).mean()
         unrate_average_12months = (
-            unrate.rolling(LAA_CONFIG.UNRATE_MA_MONTHS).mean().iloc[-1]
+            unrate_rolling.dropna().iloc[-1]
+            if not unrate_rolling.dropna().empty
+            else unrate.iloc[-1]
         )
 
         self.logger.debug(

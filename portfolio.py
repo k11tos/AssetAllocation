@@ -19,35 +19,20 @@ LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING)
 
 
-def get_lethargic_asset_allocation(sp500, unrate) -> Dict[str, float]:
+def get_laa_allocation(sp500, unrate) -> Dict[str, float]:
     """
-    Get ticker for LAA (Lethargic Asset Allocation)
+    Get allocation for LAA (Lethargic Asset Allocation) strategy
+    using the LAA strategy class
     :param sp500: S&P 500 time series data from FRED
     :param unrate: Unemployment rate time series data from FRED
     :return: Dictionary with asset allocation percentages
     """
-    laa = {"VTV": 25, "GLD": 25, "IEF": 25}
+    from strategies.laa_strategy import LAAStrategy
 
-    sp500_average_200days = sp500.rolling(138).mean().iloc[-1]
-    unrate_average_12months = unrate.rolling(12).mean().iloc[-1]
+    laa_strategy = LAAStrategy()
+    data = {"sp500": sp500, "unrate": unrate}
 
-    LOGGER.debug("S&P500 200 days average: %s", round(sp500_average_200days))
-    LOGGER.debug("S&P500 today: %s", round(sp500.iloc[-1]))
-    LOGGER.debug(
-        "Unemployment rate 12 months average: %s",
-        round(unrate_average_12months, 1),
-    )
-    LOGGER.debug("Unemployment rate this month: %s", round(unrate.iloc[-1], 1))
-
-    if (
-        sp500_average_200days > sp500.iloc[-1]
-        and unrate_average_12months < unrate.iloc[-1]
-    ):
-        laa["SHY"] = 25
-    else:
-        laa["QQQ"] = 25
-
-    return laa
+    return laa_strategy.calculate_allocation(data)
 
 
 def get_original_dual_momentum(
@@ -77,114 +62,77 @@ def get_original_dual_momentum(
     return odm
 
 
-def get_vigilant_asset_allocation(
-    momentum_score: Dict[str, float]
-) -> Dict[str, float]:
+def get_vaa_allocation(momentum_score: Dict[str, float]) -> Dict[str, float]:
     """
-    Get ticker for VAA (Vigilant Asset Allocation)
+    Get allocation for VAA (Vigilant Asset Allocation) strategy
+    using the VAA strategy class
     :param momentum_score: Dictionary with momentum scores
     :return: Dictionary with asset allocation percentages
     """
-    vaa = {}
+    from strategies.vaa_strategy import VAAStrategy
 
-    LOGGER.debug("Momentum Scores:")
-    for ticker, score in momentum_score.items():
-        LOGGER.debug("%s momentum score: %s", ticker, round(score, 3))
+    vaa_strategy = VAAStrategy()
+    data = {"momentum_score": momentum_score}
 
-    if all(score >= 0 for score in momentum_score.values()):
-        attackers = ["SPY", "IEFA", "IEMG", "AGG"]
-        attacker_ticker = max(attackers, key=lambda x: momentum_score[x])
-        vaa[attacker_ticker] = 100
-    else:
-        defenders = ["LQD", "IEF", "SHY"]
-        defender_ticker = max(defenders, key=lambda x: momentum_score[x])
-        vaa[defender_ticker] = 100
-
-    return vaa
+    return vaa_strategy.calculate_allocation(data)
 
 
-def get_bold_asset_allocation(
+def get_baa_allocation(
     momentum_score: Dict[str, float],
     sma_12month: Dict[str, float],
     today_price: Dict[str, float],
 ) -> Dict[str, float]:
     """
-    Get ticker for BAA (Bold Asset Allocation)
+    Get allocation for BAA (Bold Asset Allocation) strategy
+    using the BAA strategy class
     :param momentum_score: Dictionary with momentum scores
     :param sma_12month: Dictionary with 12-month moving averages
     :param today_price: Dictionary with current prices
     :return: Dictionary with asset allocation percentages
     """
-    baa = {}
+    from strategies.baa_strategy import BAAStrategy
 
-    canary = all(score >= 0 for score in momentum_score.values())
-    if canary:
-        attacker_momentum_score = {
-            ticker: score
-            for ticker, score in momentum_score.items()
-            if ticker in ["QQQ", "IEFA", "IEMG", "AGG"]
-        }
-        top_attacker = max(
-            attacker_momentum_score, key=attacker_momentum_score.get
-        )
-        baa[top_attacker] = 100.0
-    else:
-        defenders = ["BIL", "IEF", "TLT", "LQD", "TIP", "BND", "DBC"]
-        price_index = {
-            defender: today_price[defender] / sma_12month[defender]
-            for defender in defenders
-        }
-        top_defenders = dict(
-            sorted(price_index.items(), key=lambda x: x[1], reverse=True)[:3]
-        )
-        bil = 0.0
-        for defender in top_defenders.keys():
-            if (
-                defender == "BIL"
-                or today_price[defender] < sma_12month[defender]
-            ):
-                bil += 100.0 / 3
-            else:
-                baa[defender] = 100.0 / 3
-        if bil != 0:
-            baa["BIL"] = bil
+    baa_strategy = BAAStrategy()
+    data = {
+        "momentum_score": momentum_score,
+        "sma_12month": sma_12month,
+        "today_price": today_price,
+    }
 
-    return baa
+    return baa_strategy.calculate_allocation(data)
 
 
-def get_modified_dual_momentum(
+def get_bdaa_allocation(profit_6month: Dict[str, float]) -> Dict[str, float]:
+    """
+    Get allocation for BDAA (Bond Dynamic Asset Allocation) strategy
+    using the BDAA strategy class
+    :param profit_6month: Dictionary with 6-month profit data
+    :return: Dictionary with asset allocation percentages
+    """
+    from strategies.bdaa_strategy import BDAAStrategy
+
+    bdaa_strategy = BDAAStrategy()
+    data = {"profit_6month": profit_6month}
+
+    return bdaa_strategy.calculate_allocation(data)
+
+
+def get_mdm_allocation(
     profit_12month: Dict[str, float], profit_6month: Dict[str, float]
 ) -> Dict[str, float]:
     """
-    Get ticker for MDM (Modified Dual Momentum)
+    Get allocation for MDM (Modified Dual Momentum) strategy
+    using the MDM strategy class
     :param profit_12month: Dictionary with 12-month profit data
     :param profit_6month: Dictionary with 6-month profit data
     :return: Dictionary with asset allocation percentages
     """
-    mdm = {}
+    from strategies.mdm_strategy import MDMStrategy
 
-    LOGGER.debug(
-        "SPY 12 months average: %s", str(round(profit_12month["SPY"], 3))
-    )
-    LOGGER.debug(
-        "IEFA 12 months average: %s", str(round(profit_12month["IEFA"], 3))
-    )
+    mdm_strategy = MDMStrategy()
+    data = {"profit_12month": profit_12month, "profit_6month": profit_6month}
 
-    bonds = ["SHY", "IEF", "TLT", "TIP", "LQD", "HYG", "BWX", "EMB"]
-    for bond in bonds:
-        LOGGER.debug(
-            "%s 6 months average: %s", bond, str(round(profit_6month[bond], 3))
-        )
-
-    if profit_12month["SPY"] > 0 or profit_12month["IEFA"] > 0:
-        if profit_12month["SPY"] >= profit_12month["IEFA"]:
-            mdm["SPY"] = 100
-        else:
-            mdm["IEFA"] = 100
-    else:
-        mdm = get_bond_dynamic_asset_allocation(profit_6month)
-
-    return mdm
+    return mdm_strategy.calculate_allocation(data)
 
 
 def get_bond_dynamic_asset_allocation(

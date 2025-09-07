@@ -40,7 +40,7 @@ class VAAStrategy(BaseStrategy):
         # 모든 모멘텀 스코어가 양수인 경우 공격자 자산 선택
         if all(score >= 0 for score in momentum_score.values()):
             attacker_ticker = max(
-                HAA_CONFIG.ATTACKER_TICKERS,
+                VAA_CONFIG.ATTACKER_TICKERS,
                 key=lambda x: momentum_score.get(x, float("-inf")),
             )
             vaa[attacker_ticker] = 100
