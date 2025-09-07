@@ -17,6 +17,7 @@ from portfolio import (
     print_info_message,
 )
 from utils.performance_monitor import get_performance_monitor
+from utils.strategy_optimizer import get_required_tickers_for_strategy
 
 
 # 로깅 설정
@@ -68,9 +69,13 @@ def load_tickers(file_path: str = None) -> list:
 
 
 def execute_haa_strategy(tickers: list) -> Optional[Dict[str, float]]:
-    """HAA 전략을 실행합니다."""
+    """HAA 전략을 최적화된 데이터로 실행합니다."""
     try:
         LOGGER.info("Starting HAA strategy execution...")
+
+        # HAA 전략에 필요한 티커만 추출
+        required_tickers = get_required_tickers_for_strategy("haa")
+        print(f"🔍 HAA 전략: {len(required_tickers)}개 자산 데이터 요청")
 
         (
             momentum_score,
@@ -79,7 +84,7 @@ def execute_haa_strategy(tickers: list) -> Optional[Dict[str, float]]:
             profit_6month,
             sma_12month,
             today_price,
-        ) = get_financial_data(" ".join(tickers))
+        ) = get_financial_data(" ".join(required_tickers))
 
         haa = get_hybrid_asset_allocation(momentum_score_simple)
         LOGGER.info("HAA strategy executed successfully")

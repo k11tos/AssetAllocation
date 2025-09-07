@@ -104,16 +104,17 @@ class TestDataService(unittest.TestCase):
             self.data_service.get_financial_data("INVALID")
 
     @patch("services.data_service.yf.download")
-    def test_get_financial_data_no_spy(self, mock_download):
-        """SPY 데이터가 없는 경우 테스트"""
+    def test_get_financial_data_insufficient_data(self, mock_download):
+        """데이터가 부족한 경우 테스트 (6개월 데이터 필요)"""
         import pandas as pd
 
+        # 6개월(약 126거래일)보다 적은 데이터 제공
         mock_data = pd.DataFrame(
-            {("QQQ", "Adj Close"): [200, 210, 220, 230, 240]}
+            {("QQQ", "Adj Close"): [200, 210, 220, 230, 240]}  # 5개 데이터만
         )
         mock_download.return_value = mock_data
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(IndexError):
             self.data_service.get_financial_data("QQQ")
 
     def test_cache_functionality(self):

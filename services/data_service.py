@@ -191,14 +191,17 @@ class DataService:
         if len(data) == 0:
             raise ValueError("No data available for the specified tickers")
 
-        if ("SPY", "Adj Close") not in data.columns:
+        # 첫 번째 자산을 기준으로 거래일 수 계산
+        first_ticker = data.columns.get_level_values(0)[0]
+        if (first_ticker, "Adj Close") not in data.columns:
             raise ValueError(
-                "SPY data not available - required for calculations"
+                f"{first_ticker} data not available "
+                "- required for calculations"
             )
 
-        # SPY 데이터를 기준으로 거래일 수 계산
-        spy_adj_close = data[("SPY", "Adj Close")]
-        working_day = len(spy_adj_close)
+        # 첫 번째 자산 데이터를 기준으로 거래일 수 계산
+        first_ticker_adj_close = data[(first_ticker, "Adj Close")]
+        working_day = len(first_ticker_adj_close)
 
         # 거래일 상수 가져오기
         trading_days = get_trading_days_dict()
