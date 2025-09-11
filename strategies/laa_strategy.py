@@ -5,6 +5,9 @@ LAA (Lethargic Asset Allocation) strategy implementation
 
 from typing import Any, Dict
 
+import numpy as np
+import talib as ta
+
 from config import LAA_CONFIG
 
 from .base_strategy import BaseStrategy
@@ -35,20 +38,21 @@ class LAAStrategy(BaseStrategy):
 
         laa = LAA_CONFIG.BASE_ALLOCATION.copy()
 
-        # S&P 500 200일 이동평균 계산
-        sp500_rolling = sp500.rolling(LAA_CONFIG.SP500_MA_DAYS).mean()
+        # S&P 500 200일 이동평균 계산 (ta-lib SMA 사용)
+        # ta-lib는 double 타입을 요구하므로 astype으로 변환
+        sp500_array = sp500.values.astype(np.float64)
+        sp500_sma = ta.SMA(sp500_array, timeperiod=LAA_CONFIG.SP500_MA_DAYS)
         sp500_average_200days = (
-            sp500_rolling.dropna().iloc[-1]
-            if not sp500_rolling.dropna().empty
-            else sp500.iloc[-1]
+            sp500_sma[-1] if not np.isnan(sp500_sma[-1]) else sp500.iloc[-1]
         )
 
-        # 실업률 12개월 이동평균 계산
-        unrate_rolling = unrate.rolling(LAA_CONFIG.UNRATE_MA_MONTHS).mean()
+        # 실업률 12개월 이동평균 계산 (ta-lib SMA 사용)
+        unrate_array = unrate.values.astype(np.float64)
+        unrate_sma = ta.SMA(
+            unrate_array, timeperiod=LAA_CONFIG.UNRATE_MA_MONTHS
+        )
         unrate_average_12months = (
-            unrate_rolling.dropna().iloc[-1]
-            if not unrate_rolling.dropna().empty
-            else unrate.iloc[-1]
+            unrate_sma[-1] if not np.isnan(unrate_sma[-1]) else unrate.iloc[-1]
         )
 
         self.logger.debug(

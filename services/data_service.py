@@ -6,6 +6,8 @@ Data service for financial data retrieval
 import logging
 from typing import Any, Dict, Tuple
 
+import numpy as np
+import talib as ta
 import yfinance as yf
 from fredapi import Fred
 
@@ -199,10 +201,6 @@ class DataService:
                 "- required for calculations"
             )
 
-        # 첫 번째 자산 데이터를 기준으로 거래일 수 계산
-        first_ticker_adj_close = data[(first_ticker, "Adj Close")]
-        working_day = len(first_ticker_adj_close)
-
         # 거래일 상수 가져오기
         trading_days = get_trading_days_dict()
         momentum_weights = get_momentum_weights_dict()
@@ -215,26 +213,43 @@ class DataService:
 
             daily_price[ticker] = data[(ticker, "Adj Close")]
 
-            # 수익률 계산
+            # 수익률 계산 (ta-lib ROC 사용)
+            # ta-lib는 double 타입을 요구하므로 astype으로 변환
+            price_array = daily_price[ticker].values.astype(np.float64)
+
+            # 12개월 수익률 (ROC는 백분율로 반환되므로 100으로 나눔)
+            roc_12month = ta.ROC(
+                price_array, timeperiod=trading_days["12_month"]
+            )
             profit_12month[ticker] = (
-                daily_price[ticker].iloc[-1]
-                - daily_price[ticker].iloc[-working_day]
-            ) / daily_price[ticker].iloc[-1]
+                roc_12month[-1] / 100.0
+                if not np.isnan(roc_12month[-1])
+                else 0.0
+            )
 
+            # 6개월 수익률
+            roc_6month = ta.ROC(
+                price_array, timeperiod=trading_days["6_month"]
+            )
             profit_6month[ticker] = (
-                daily_price[ticker].iloc[-1]
-                - daily_price[ticker].iloc[-trading_days["6_month"]]
-            ) / daily_price[ticker].iloc[-1]
+                roc_6month[-1] / 100.0 if not np.isnan(roc_6month[-1]) else 0.0
+            )
 
+            # 3개월 수익률
+            roc_3month = ta.ROC(
+                price_array, timeperiod=trading_days["3_month"]
+            )
             profit_3month[ticker] = (
-                daily_price[ticker].iloc[-1]
-                - daily_price[ticker].iloc[-trading_days["3_month"]]
-            ) / daily_price[ticker].iloc[-1]
+                roc_3month[-1] / 100.0 if not np.isnan(roc_3month[-1]) else 0.0
+            )
 
+            # 1개월 수익률
+            roc_1month = ta.ROC(
+                price_array, timeperiod=trading_days["1_month"]
+            )
             profit_1month[ticker] = (
-                daily_price[ticker].iloc[-1]
-                - daily_price[ticker].iloc[-trading_days["1_month"]]
-            ) / daily_price[ticker].iloc[-1]
+                roc_1month[-1] / 100.0 if not np.isnan(roc_1month[-1]) else 0.0
+            )
 
             # 모멘텀 스코어 계산
             momentum_score[ticker] = (
@@ -251,7 +266,10 @@ class DataService:
                 + profit_1month[ticker]
             )
 
-            sma_12month[ticker] = daily_price[ticker].mean()
+            # 12개월 단순이동평균 계산 (ta-lib SMA 사용)
+            sma_12month[ticker] = ta.SMA(
+                price_array, timeperiod=trading_days["12_month"]
+            )[-1]
             today_price[ticker] = daily_price[ticker].iloc[-1]
 
         LOGGER.info(

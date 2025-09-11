@@ -9,11 +9,25 @@ RUN apk add --no-cache \
     gcc \
     musl-dev \
     libffi-dev \
-    openssl-dev
+    openssl-dev \
+    wget \
+    tar \
+    make \
+    g++
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Build and install TA-Lib from source
+RUN wget --timeout=30 --tries=3 https://sourceforge.net/projects/ta-lib/files/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz/download -O ta-lib-0.4.0-src.tar.gz && \
+    tar -xzf ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib && \
+    ./configure --prefix=/usr --build=aarch64-unknown-linux-gnu && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
+
+# Copy project files and install Python dependencies
+COPY pyproject.toml uv.lock README.md ./
+RUN pip install --no-cache-dir -e .
 
 # Runtime stage
 FROM python:3.12-alpine

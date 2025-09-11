@@ -65,8 +65,8 @@ Dockerfile
 docker-compose*.yml
 
 # Documentation
-README.md
-*.md
+# README.md is needed for package metadata
+# *.md
 
 # Testing
 .pytest_cache/

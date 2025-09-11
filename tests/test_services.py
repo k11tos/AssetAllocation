@@ -114,8 +114,20 @@ class TestDataService(unittest.TestCase):
         )
         mock_download.return_value = mock_data
 
-        with self.assertRaises(IndexError):
-            self.data_service.get_financial_data("QQQ")
+        # ta-lib는 데이터가 부족할 때 NaN을 반환하므로 예외 대신 0.0 반환
+        result = self.data_service.get_financial_data("QQQ")
+        (
+            momentum_score,
+            momentum_score_simple,
+            profit_12month,
+            profit_6month,
+            sma_12month,
+            today_price,
+        ) = result
+
+        # 수익률이 0.0으로 반환되는지 확인 (ta-lib가 NaN을 반환하므로 0.0으로 처리됨)
+        self.assertEqual(profit_12month["QQQ"], 0.0)
+        self.assertEqual(profit_6month["QQQ"], 0.0)
 
     def test_cache_functionality(self):
         """캐시 기능 테스트"""
