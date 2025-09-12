@@ -180,10 +180,8 @@ class TestCommunicationService(unittest.TestCase):
         ):
             service = CommunicationService()
 
-            # requests.post 모킹
-            with patch(
-                "services.communication_service.requests.post"
-            ) as mock_post:
+            # self.session.post 모킹
+            with patch.object(service.session, "post") as mock_post:
                 mock_response = Mock()
                 mock_response.raise_for_status.return_value = None
                 mock_post.return_value = mock_response
@@ -208,10 +206,8 @@ class TestCommunicationService(unittest.TestCase):
         ):
             service = CommunicationService()
 
-            # requests.post 실패 모킹
-            with patch(
-                "services.communication_service.requests.post"
-            ) as mock_post:
+            # self.session.post 실패 모킹
+            with patch.object(service.session, "post") as mock_post:
                 mock_post.side_effect = Exception("Network error")
 
                 result = service.send_message("Test message")

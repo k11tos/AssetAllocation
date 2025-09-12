@@ -9,7 +9,9 @@ from typing import Dict, Optional
 
 import requests
 import telegram
+from requests.adapters import HTTPAdapter
 from telegram.ext import Updater
+from urllib3.util.retry import Retry
 
 from config import API_CONFIG
 from utils.security import InputValidator, SecurityManager, log_security_event
@@ -24,6 +26,7 @@ class CommunicationService:
         self.telegram_account = None
         self.security_manager = SecurityManager()
         self._initialize_telegram()
+        self._setup_session()
 
     def _initialize_telegram(self) -> None:
         """텔레그램 계정을 초기화합니다."""
@@ -90,6 +93,21 @@ class CommunicationService:
             )
             raise
 
+    def _setup_session(self) -> None:
+        """HTTP 세션을 설정합니다."""
+        self.session = requests.Session()
+
+        # 재시도 전략 설정
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+        )
+
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+
     def send_message(self, message: str) -> bool:
         """
         텔레그램으로 메시지를 전송합니다.
@@ -129,7 +147,11 @@ class CommunicationService:
                 "parse_mode": "HTML",
             }
 
-            response = requests.post(url, data=data, timeout=30)
+            headers = {"User-Agent": "AssetAllocationBot/1.0"}
+
+            response = self.session.post(
+                url, data=data, headers=headers, timeout=30
+            )
             response.raise_for_status()
 
             LOGGER.debug(
