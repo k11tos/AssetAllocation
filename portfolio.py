@@ -202,27 +202,6 @@ def get_korean_all_weather_allocation() -> Dict[str, float]:
     return kaw_strategy.execute(data)
 
 
-# Legacy functions for backward compatibility
-def get_fred_account():
-    """레거시 함수 - DataService를 사용하세요."""
-    LOGGER.warning("get_fred_account is deprecated, use DataService instead")
-    return get_data_service().fred_account
-
-
-def get_telegram_account(mode: str = "information"):
-    """레거시 함수 - CommunicationService를 사용하세요."""
-    LOGGER.warning(
-        "get_telegram_account is deprecated, use CommunicationService instead"
-    )
-    communication_service = get_communication_service()
-    return {
-        "bot": communication_service.get_telegram_bot(mode),
-        "chat_id": communication_service.telegram_account["chat_id"]
-        if communication_service.telegram_account
-        else None,
-    }
-
-
 def print_info_message(message_string: str) -> None:
     """
     정보 메시지를 출력하고 텔레그램으로 전송합니다.
@@ -230,37 +209,33 @@ def print_info_message(message_string: str) -> None:
     Args:
         message_string: 출력할 메시지
     """
-    communication_service = get_communication_service()
+    try:
+        communication_service = CommunicationService()
+        success = communication_service.send_message(message_string)
 
-    # 텔레그램으로 전송 시도
-    success = communication_service.send_message(message_string)
+        if success:
+            LOGGER.debug(
+                f"Message sent via Telegram: {message_string[:50]}..."
+            )
+        else:
+            LOGGER.info(
+                f"Telegram send failed, logged locally: {message_string}"
+            )
 
-    # 전송 실패 시 로그에만 기록
-    if not success:
-        LOGGER.info(message_string)
-    else:
-        LOGGER.debug(f"Message sent via Telegram: {message_string[:50]}...")
+    except Exception as e:
+        LOGGER.error(f"Failed to send message via Telegram: {str(e)}")
+        LOGGER.info(f"Message logged locally: {message_string}")
 
 
-# Global service instances
-_data_service = None
-_communication_service = None
-
-
+# Service factory functions
 def get_data_service() -> DataService:
     """데이터 서비스 인스턴스를 반환합니다."""
-    global _data_service
-    if _data_service is None:
-        _data_service = DataService()
-    return _data_service
+    return DataService()
 
 
 def get_communication_service() -> CommunicationService:
     """통신 서비스 인스턴스를 반환합니다."""
-    global _communication_service
-    if _communication_service is None:
-        _communication_service = CommunicationService()
-    return _communication_service
+    return CommunicationService()
 
 
 def get_financial_data(
