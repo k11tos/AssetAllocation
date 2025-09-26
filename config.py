@@ -13,6 +13,23 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+class KoreanAllWeatherConstants:
+    """한국형 올웨더 전략 상수들"""
+
+    # 위험자산 중심 기간 배분
+    RISKY_EQUITY_ALLOCATION = 25.0
+    RISKY_GOLD_ALLOCATION = 15.0
+    RISKY_BOND_ALLOCATION = 17.5
+
+    # 안전자산 중심 기간 배분
+    SAFE_EQUITY_ALLOCATION = 10.0
+    SAFE_GOLD_ALLOCATION = 15.0
+    SAFE_BOND_ALLOCATION = 32.5
+
+    # 위험자산 중심 기간 (11~4월)
+    RISKY_MONTHS = [11, 12, 1, 2, 3, 4]
+
+
 @dataclass
 class TradingDays:
     """거래일 상수"""
@@ -59,24 +76,44 @@ class KoreanAllWeatherConfig:
     def __post_init__(self):
         if self.RISKY_PERIOD_ALLOCATION is None:
             self.RISKY_PERIOD_ALLOCATION = {
-                "TIGER S&P500": 25.0,
-                "KOSEF 200TR": 25.0,
-                "KODEX 골드선물(H)": 15.0,
-                "TIGER 미국채 10년 선물": 17.5,
-                "KOSEF 국고채 10년": 17.5,
+                "TIGER S&P500": (
+                    KoreanAllWeatherConstants.RISKY_EQUITY_ALLOCATION
+                ),
+                "KOSEF 200TR": (
+                    KoreanAllWeatherConstants.RISKY_EQUITY_ALLOCATION
+                ),
+                "KODEX 골드선물(H)": (
+                    KoreanAllWeatherConstants.RISKY_GOLD_ALLOCATION
+                ),
+                "TIGER 미국채 10년 선물": (
+                    KoreanAllWeatherConstants.RISKY_BOND_ALLOCATION
+                ),
+                "KOSEF 국고채 10년": (
+                    KoreanAllWeatherConstants.RISKY_BOND_ALLOCATION
+                ),
             }
 
         if self.SAFE_PERIOD_ALLOCATION is None:
             self.SAFE_PERIOD_ALLOCATION = {
-                "TIGER S&P500": 10.0,
-                "KOSEF 200TR": 10.0,
-                "KODEX 골드선물(H)": 15.0,
-                "TIGER 미국채 10년 선물": 32.5,
-                "KOSEF 국고채 10년": 32.5,
+                "TIGER S&P500": (
+                    KoreanAllWeatherConstants.SAFE_EQUITY_ALLOCATION
+                ),
+                "KOSEF 200TR": (
+                    KoreanAllWeatherConstants.SAFE_EQUITY_ALLOCATION
+                ),
+                "KODEX 골드선물(H)": (
+                    KoreanAllWeatherConstants.SAFE_GOLD_ALLOCATION
+                ),
+                "TIGER 미국채 10년 선물": (
+                    KoreanAllWeatherConstants.SAFE_BOND_ALLOCATION
+                ),
+                "KOSEF 국고채 10년": (
+                    KoreanAllWeatherConstants.SAFE_BOND_ALLOCATION
+                ),
             }
 
         if self.RISKY_MONTHS is None:
-            self.RISKY_MONTHS = [11, 12, 1, 2, 3, 4]
+            self.RISKY_MONTHS = KoreanAllWeatherConstants.RISKY_MONTHS
 
 
 @dataclass
@@ -160,7 +197,7 @@ class BDAAConfig:
 
     BOND_TICKERS: List[str] = None
     TOP_BONDS_COUNT: int = 3
-    BOND_ALLOCATION_RATIO: float = 100.0 / 3
+    BOND_ALLOCATION_RATIO: float = 100.0 / TOP_BONDS_COUNT
 
     def __post_init__(self):
         if self.BOND_TICKERS is None:
@@ -182,7 +219,7 @@ class MDMConfig:
 
     BOND_TICKERS: List[str] = None
     TOP_BONDS_COUNT: int = 3
-    BOND_ALLOCATION_RATIO: float = 100.0 / 3
+    BOND_ALLOCATION_RATIO: float = 100.0 / TOP_BONDS_COUNT
 
     def __post_init__(self):
         if self.BOND_TICKERS is None:

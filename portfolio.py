@@ -9,6 +9,7 @@ from typing import Dict, Tuple
 # Load environment variables
 from dotenv import load_dotenv
 
+from config import BDAA_CONFIG
 from services.communication_service import CommunicationService
 from services.data_service import DataService
 from strategies import HAAStrategy, KoreanAllWeatherStrategy
@@ -17,6 +18,16 @@ load_dotenv()
 
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING)
+
+
+class AllocationConstants:
+    """자산 배분 관련 상수들"""
+
+    # 기본 배분 비율
+    FULL_ALLOCATION = 100.0
+
+    # 로깅 관련
+    DECIMAL_PLACES = 3
 
 
 def get_laa_allocation(sp500, unrate) -> Dict[str, float]:
@@ -45,19 +56,26 @@ def get_original_dual_momentum(
     """
     odm = {}
 
-    LOGGER.debug("SPY 12 months average: %s", round(profit_12month["SPY"], 3))
-    LOGGER.debug("BIL 12 months average: %s", round(profit_12month["BIL"], 3))
     LOGGER.debug(
-        "IEFA 12 months average: %s", round(profit_12month["IEFA"], 3)
+        "SPY 12 months average: %s",
+        round(profit_12month["SPY"], AllocationConstants.DECIMAL_PLACES),
+    )
+    LOGGER.debug(
+        "BIL 12 months average: %s",
+        round(profit_12month["BIL"], AllocationConstants.DECIMAL_PLACES),
+    )
+    LOGGER.debug(
+        "IEFA 12 months average: %s",
+        round(profit_12month["IEFA"], AllocationConstants.DECIMAL_PLACES),
     )
 
     if profit_12month["SPY"] > profit_12month["BIL"]:
         if profit_12month["SPY"] >= profit_12month["IEFA"]:
-            odm["SPY"] = 100
+            odm["SPY"] = AllocationConstants.FULL_ALLOCATION
         else:
-            odm["IEFA"] = 100
+            odm["IEFA"] = AllocationConstants.FULL_ALLOCATION
     else:
-        odm["AGG"] = 100
+        odm["AGG"] = AllocationConstants.FULL_ALLOCATION
 
     return odm
 
@@ -158,14 +176,14 @@ def get_bond_dynamic_asset_allocation(
 
     bond_profit_top3 = sorted(
         bond_profit_dict.items(), key=lambda x: x[1], reverse=True
-    )[:3]
+    )[: BDAA_CONFIG.TOP_BONDS_COUNT]
 
     cash = 0
     for key, value in bond_profit_top3:
         if value < 0:
-            cash += 100.0 / 3
+            cash += BDAA_CONFIG.BOND_ALLOCATION_RATIO
         else:
-            bdaa[key] = 100.0 / 3
+            bdaa[key] = BDAA_CONFIG.BOND_ALLOCATION_RATIO
 
     if cash > 0:
         bdaa["CASH"] = cash
