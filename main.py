@@ -10,6 +10,12 @@ import sys
 from typing import Dict, Optional
 
 from config import STRATEGY_CONFIG, validate_config
+from exceptions import (
+    DataRetrievalError,
+    DataValidationError,
+    NetworkError,
+    StrategyExecutionError,
+)
 from portfolio import (
     get_financial_data,
     get_hybrid_asset_allocation,
@@ -90,11 +96,17 @@ def execute_haa_strategy(tickers: list) -> Optional[Dict[str, float]]:
         LOGGER.info("HAA strategy executed successfully")
         return haa
 
-    except ValueError as e:
-        LOGGER.error(f"Data validation error in HAA strategy: {str(e)}")
+    except DataValidationError as e:
+        LOGGER.error(f"HAA strategy data validation failed: {str(e)}")
         return None
-    except ConnectionError as e:
-        LOGGER.error(f"Network error in HAA strategy: {str(e)}")
+    except DataRetrievalError as e:
+        LOGGER.error(f"HAA strategy data retrieval failed: {str(e)}")
+        return None
+    except NetworkError as e:
+        LOGGER.error(f"HAA strategy network error: {str(e)}")
+        return None
+    except StrategyExecutionError as e:
+        LOGGER.error(f"HAA strategy execution failed: {str(e)}")
         return None
     except Exception as e:
         LOGGER.error(f"Unexpected error in HAA strategy: {str(e)}")
@@ -147,6 +159,10 @@ def main() -> None:
             )
             successful_strategies += 1
             LOGGER.info("Korean All-Weather strategy executed successfully")
+        except StrategyExecutionError as e:
+            LOGGER.error(
+                f"Korean All-Weather strategy execution failed: {str(e)}"
+            )
         except Exception as e:
             LOGGER.error(f"Korean All-Weather strategy failed: {str(e)}")
 

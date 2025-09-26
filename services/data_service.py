@@ -17,6 +17,7 @@ from config import (
     get_momentum_weights_dict,
     get_trading_days_dict,
 )
+from exceptions import DataRetrievalError, DataValidationError, NetworkError
 from utils.cache_manager import CacheManager
 from utils.performance_monitor import monitor_performance
 from utils.security import InputValidator, SecurityManager, log_security_event
@@ -106,14 +107,14 @@ class DataService:
         """
         # 입력 검증
         if not tickers or not isinstance(tickers, str):
-            raise ValueError("Invalid tickers input")
+            raise DataValidationError("Invalid tickers input")
 
         # 티커 목록 검증
         ticker_list = tickers.split()
         valid_tickers = self.security_manager.validate_ticker_list(ticker_list)
 
         if not valid_tickers:
-            raise ValueError("No valid tickers provided")
+            raise DataValidationError("No valid tickers provided")
 
         if len(valid_tickers) != len(ticker_list):
             log_security_event(
@@ -187,16 +188,18 @@ class DataService:
             ).dropna()
         except Exception as e:
             LOGGER.error(f"Failed to download financial data: {str(e)}")
-            raise ValueError(f"Failed to download financial data: {str(e)}")
+            raise NetworkError(f"Failed to download financial data: {str(e)}")
 
         # 데이터 유효성 검사
         if len(data) == 0:
-            raise ValueError("No data available for the specified tickers")
+            raise DataRetrievalError(
+                "No data available for the specified tickers"
+            )
 
         # 첫 번째 자산을 기준으로 거래일 수 계산
         first_ticker = data.columns.get_level_values(0)[0]
         if (first_ticker, "Adj Close") not in data.columns:
-            raise ValueError(
+            raise DataRetrievalError(
                 f"{first_ticker} data not available "
                 "- required for calculations"
             )
@@ -303,7 +306,7 @@ class DataService:
         """
         try:
             if self.fred_account is None:
-                raise ValueError("FRED account not initialized")
+                raise DataRetrievalError("FRED account not initialized")
 
             data = self.fred_account.get_series(
                 series_id, start_date, end_date
@@ -311,9 +314,14 @@ class DataService:
             LOGGER.debug(f"Successfully retrieved FRED data for {series_id}")
             return data
 
+        except DataRetrievalError:
+            # 이미 정의된 예외는 그대로 전파
+            raise
         except Exception as e:
             LOGGER.error(f"Failed to get FRED data for {series_id}: {str(e)}")
-            raise
+            raise DataRetrievalError(
+                f"Failed to get FRED data for {series_id}: {str(e)}"
+            ) from e
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """캐시 통계를 반환합니다."""

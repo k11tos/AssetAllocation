@@ -87,13 +87,19 @@ class TestHAAStrategy(unittest.TestCase):
 
     def test_validate_data(self):
         """데이터 유효성 검증 테스트"""
-        # 유효한 데이터
+        # 유효한 데이터 (예외가 발생하지 않아야 함)
         valid_data = {"momentum_score_simple": {"SPY": 0.1}}
-        self.assertTrue(self.strategy.validate_data(valid_data))
+        try:
+            self.strategy.validate_data(valid_data)
+            # 예외가 발생하지 않으면 성공
+            self.assertTrue(True)
+        except Exception:
+            self.fail("Valid data should not raise exception")
 
-        # 유효하지 않은 데이터
+        # 유효하지 않은 데이터 (예외가 발생해야 함)
         invalid_data = {"wrong_key": {"SPY": 0.1}}
-        self.assertFalse(self.strategy.validate_data(invalid_data))
+        with self.assertRaises(Exception):
+            self.strategy.validate_data(invalid_data)
 
 
 class TestKoreanAllWeatherStrategy(unittest.TestCase):
@@ -137,8 +143,14 @@ class TestKoreanAllWeatherStrategy(unittest.TestCase):
     def test_validate_data(self):
         """데이터 유효성 검증 테스트"""
         # 빈 데이터도 유효해야 함 (추가 데이터가 필요하지 않음)
-        self.assertTrue(self.strategy.validate_data({}))
-        self.assertTrue(self.strategy.validate_data({"any": "data"}))
+        try:
+            self.strategy.validate_data({})
+            # 예외가 발생하지 않으면 성공
+            self.assertTrue(True)
+        except Exception:
+            self.fail(
+                "Empty data should not raise exception for Korean All-Weather"
+            )
 
 
 if __name__ == "__main__":

@@ -10,6 +10,13 @@ from config import HAA_CONFIG
 from .base_strategy import BaseStrategy
 
 
+class AllocationConstants:
+    """자산 배분 관련 상수들"""
+
+    # 기본 배분 비율
+    FULL_ALLOCATION = 100.0
+
+
 class HAAStrategy(BaseStrategy):
     """HAA (Hybrid Asset Allocation) 전략"""
 
@@ -48,7 +55,10 @@ class HAAStrategy(BaseStrategy):
                 )[: HAA_CONFIG.TOP_ATTACKERS_COUNT]
             )
             for key in attacker_profit_top4.keys():
-                haa[key] = 100.0 / HAA_CONFIG.TOP_ATTACKERS_COUNT
+                haa[key] = (
+                    AllocationConstants.FULL_ALLOCATION
+                    / HAA_CONFIG.TOP_ATTACKERS_COUNT
+                )
             self.logger.debug(
                 f"TIP > 0, using top {HAA_CONFIG.TOP_ATTACKERS_COUNT} "
                 f"attackers: {list(attacker_profit_top4.keys())}"
@@ -56,12 +66,12 @@ class HAAStrategy(BaseStrategy):
 
         # IEF가 양수인 경우 IEF에 100% 배분
         elif momentum_score_simple.get("IEF", 0) > HAA_CONFIG.IEF_THRESHOLD:
-            haa["IEF"] = 100
+            haa["IEF"] = AllocationConstants.FULL_ALLOCATION
             self.logger.debug("IEF > 0, allocating 100% to IEF")
 
         # 그 외의 경우 현금 보유
         else:
-            haa["CASH"] = 100
+            haa["CASH"] = AllocationConstants.FULL_ALLOCATION
             self.logger.debug("TIP and IEF <= 0, allocating 100% to CASH")
 
         self.logger.debug(f"HAA allocation: {haa}")
