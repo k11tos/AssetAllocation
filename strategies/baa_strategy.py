@@ -47,7 +47,8 @@ class BAAStrategy(BaseStrategy):
                 if ticker in BAA_CONFIG.ATTACKER_TICKERS
             }
             top_attacker = max(
-                attacker_momentum_score, key=attacker_momentum_score.get
+                attacker_momentum_score,
+                key=lambda x: attacker_momentum_score[x],
             )
             baa[top_attacker] = 100.0
             self.logger.debug(

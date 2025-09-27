@@ -94,12 +94,12 @@ def get_all_required_tickers(strategies: List[str]) -> List[str]:
     return sorted(list(all_tickers))
 
 
-def get_strategy_optimization_info() -> Dict[str, Dict[str, int]]:
+def get_strategy_optimization_info() -> Dict[str, Dict[str, object]]:
     """
     전략별 최적화 정보를 반환합니다.
 
     Returns:
-        Dict[str, Dict[str, int]]: 전략별 티커 수와 최적화 정보
+        Dict[str, Dict[str, object]]: 전략별 티커 수와 최적화 정보
     """
     info = {}
 

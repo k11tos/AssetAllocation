@@ -33,7 +33,7 @@ class MDMStrategy(BaseStrategy):
         profit_12month = data["profit_12month"]
         profit_6month = data["profit_6month"]
 
-        mdm = {}
+        mdm: Dict[str, float] = {}
 
         self.logger.debug(
             f"SPY 12 months average: {round(profit_12month.get('SPY', 0), 3)}"
@@ -80,7 +80,7 @@ class MDMStrategy(BaseStrategy):
         Returns:
             채권 배분 딕셔너리
         """
-        bdaa = {}
+        bdaa: Dict[str, float] = {}
 
         # 채권 수익률 딕셔너리 구성
         bond_profit_dict = {
@@ -93,7 +93,7 @@ class MDMStrategy(BaseStrategy):
             bond_profit_dict.items(), key=lambda x: x[1], reverse=True
         )[: MDM_CONFIG.TOP_BONDS_COUNT]
 
-        cash = 0
+        cash: float = 0
         for key, value in bond_profit_top3:
             if value < 0:
                 cash += MDM_CONFIG.BOND_ALLOCATION_RATIO

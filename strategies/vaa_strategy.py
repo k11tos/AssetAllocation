@@ -31,7 +31,7 @@ class VAAStrategy(BaseStrategy):
             자산 배분 딕셔너리
         """
         momentum_score = data["momentum_score"]
-        vaa = {}
+        vaa: Dict[str, float] = {}
 
         self.logger.debug("Momentum Scores:")
         for ticker, score in momentum_score.items():
@@ -39,6 +39,8 @@ class VAAStrategy(BaseStrategy):
 
         # 모든 모멘텀 스코어가 양수인 경우 공격자 자산 선택
         if all(score >= 0 for score in momentum_score.values()):
+            if VAA_CONFIG.ATTACKER_TICKERS is None:
+                raise ValueError("ATTACKER_TICKERS is not configured")
             attacker_ticker = max(
                 VAA_CONFIG.ATTACKER_TICKERS,
                 key=lambda x: momentum_score.get(x, float("-inf")),
@@ -50,6 +52,8 @@ class VAAStrategy(BaseStrategy):
             )
         else:
             # 그렇지 않은 경우 방어자 자산 선택
+            if VAA_CONFIG.DEFENDER_TICKERS is None:
+                raise ValueError("DEFENDER_TICKERS is not configured")
             defender_ticker = max(
                 VAA_CONFIG.DEFENDER_TICKERS,
                 key=lambda x: momentum_score.get(x, float("-inf")),

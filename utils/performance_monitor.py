@@ -18,7 +18,7 @@ class PerformanceMonitor:
     def __init__(self):
         self.metrics = {}
 
-    def time_function(self, func_name: str = None):
+    def time_function(self, func_name: Optional[str] = None):
         """
         함수 실행 시간을 측정하는 데코레이터
 

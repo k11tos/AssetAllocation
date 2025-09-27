@@ -4,7 +4,7 @@ Data service for financial data retrieval
 """
 
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import talib as ta
@@ -139,12 +139,12 @@ class DataService:
         )
         if cached_data is not None:
             LoggingConfig.log_data_retrieval(
-                LOGGER, "cache", validated_tickers, cached=True
+                LOGGER, "cache", list(validated_tickers), cached=True
             )
             return cached_data
 
         LoggingConfig.log_data_retrieval(
-            LOGGER, "yfinance", validated_tickers, cached=False
+            LOGGER, "yfinance", list(validated_tickers), cached=False
         )
         data = self._fetch_financial_data(validated_tickers)
 
@@ -296,7 +296,10 @@ class DataService:
 
     @monitor_performance("get_fred_data")
     def get_fred_data(
-        self, series_id: str, start_date: str = None, end_date: str = None
+        self,
+        series_id: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
     ):
         """
         FRED에서 데이터를 가져옵니다.

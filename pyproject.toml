@@ -62,7 +62,13 @@ multi_line_output = 3               # (black 프로필에 포함되지만 명시
 
 [dependency-groups]
 dev = [
+    "bandit>=1.8.6",
+    "coverage>=7.10.6",
+    "mypy>=1.18.2",
+    "pylint>=3.3.8",
     "pytest>=8.4.2",
     "pytest-cov>=6.2.1",
     "pytest-mock>=3.15.0",
+    "radon>=6.0.1",
+    "safety>=3.6.2",
 ]

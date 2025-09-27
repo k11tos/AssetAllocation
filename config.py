@@ -5,7 +5,7 @@ Configuration settings for asset allocation strategies
 
 import os
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -65,13 +65,13 @@ class KoreanAllWeatherConfig:
     """한국형 올웨더 전략 설정"""
 
     # 11~4월 전략 (위험자산 중심)
-    RISKY_PERIOD_ALLOCATION: Dict[str, float] = None
+    RISKY_PERIOD_ALLOCATION: Optional[Dict[str, float]] = None
 
     # 5~10월 전략 (안전자산 중심)
-    SAFE_PERIOD_ALLOCATION: Dict[str, float] = None
+    SAFE_PERIOD_ALLOCATION: Optional[Dict[str, float]] = None
 
     # 위험자산 중심 기간 (11~4월)
-    RISKY_MONTHS: List[int] = None
+    RISKY_MONTHS: Optional[List[int]] = None
 
     def __post_init__(self):
         if self.RISKY_PERIOD_ALLOCATION is None:
@@ -120,7 +120,7 @@ class KoreanAllWeatherConfig:
 class HAAConfig:
     """HAA (Hybrid Asset Allocation) 전략 설정"""
 
-    ATTACKER_TICKERS: List[str] = None
+    ATTACKER_TICKERS: Optional[List[str]] = None
     TIP_THRESHOLD: float = 0.0
     IEF_THRESHOLD: float = 0.0
     TOP_ATTACKERS_COUNT: int = 4
@@ -143,8 +143,8 @@ class HAAConfig:
 class VAAConfig:
     """VAA (Vigilant Asset Allocation) 전략 설정"""
 
-    ATTACKER_TICKERS: List[str] = None
-    DEFENDER_TICKERS: List[str] = None
+    ATTACKER_TICKERS: Optional[List[str]] = None
+    DEFENDER_TICKERS: Optional[List[str]] = None
 
     def __post_init__(self):
         if self.ATTACKER_TICKERS is None:
@@ -157,8 +157,8 @@ class VAAConfig:
 class BAAConfig:
     """BAA (Bold Asset Allocation) 전략 설정"""
 
-    ATTACKER_TICKERS: List[str] = None
-    DEFENDER_TICKERS: List[str] = None
+    ATTACKER_TICKERS: Optional[List[str]] = None
+    DEFENDER_TICKERS: Optional[List[str]] = None
     TOP_DEFENDERS_COUNT: int = 3
 
     def __post_init__(self):
@@ -180,7 +180,7 @@ class BAAConfig:
 class LAAConfig:
     """LAA (Lethargic Asset Allocation) 전략 설정"""
 
-    BASE_ALLOCATION: Dict[str, float] = None
+    BASE_ALLOCATION: Optional[Dict[str, float]] = None
     SP500_MA_DAYS: int = 138
     UNRATE_MA_MONTHS: int = 12
     QQQ_ALLOCATION: float = 25.0
@@ -195,7 +195,7 @@ class LAAConfig:
 class BDAAConfig:
     """BDAA (Bond Dynamic Asset Allocation) 전략 설정"""
 
-    BOND_TICKERS: List[str] = None
+    BOND_TICKERS: Optional[List[str]] = None
     TOP_BONDS_COUNT: int = 3
     BOND_ALLOCATION_RATIO: float = 100.0 / TOP_BONDS_COUNT
 
@@ -217,7 +217,7 @@ class BDAAConfig:
 class MDMConfig:
     """MDM (Modified Dual Momentum) 전략 설정"""
 
-    BOND_TICKERS: List[str] = None
+    BOND_TICKERS: Optional[List[str]] = None
     TOP_BONDS_COUNT: int = 3
     BOND_ALLOCATION_RATIO: float = 100.0 / TOP_BONDS_COUNT
 

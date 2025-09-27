@@ -5,7 +5,6 @@ Get portfolio with original dual momentum, VAA and LAA
 
 import datetime
 import json
-import logging
 import sys
 from typing import Dict, List, Optional
 
@@ -43,7 +42,7 @@ def load_tickers(file_path: Optional[str] = None) -> List[str]:
             raise ValueError(f"No tickers found in {file_path}")
 
         LOGGER.info(
-            f"📋 Successfully loaded {len(tickers)} tickers from {file_path}"
+            "📋 Successfully loaded %d tickers from %s", len(tickers), file_path
         )
         return tickers
 
@@ -66,22 +65,22 @@ def load_tickers(file_path: Optional[str] = None) -> List[str]:
         raise
 
 
-def execute_haa_strategy(tickers: list) -> Optional[Dict[str, float]]:
+def execute_haa_strategy() -> Optional[Dict[str, float]]:
     """HAA 전략을 최적화된 데이터로 실행합니다."""
     try:
         LoggingConfig.log_strategy_start(LOGGER, "HAA")
 
         # HAA 전략에 필요한 티커만 추출
         required_tickers = get_required_tickers_for_strategy("haa")
-        LOGGER.info(f"🔍 HAA 전략: {len(required_tickers)}개 자산 데이터 요청")
+        LOGGER.info("🔍 HAA 전략: %d개 자산 데이터 요청", len(required_tickers))
 
         (
-            momentum_score,
+            _,
             momentum_score_simple,
-            profit_12month,
-            profit_6month,
-            sma_12month,
-            today_price,
+            _,
+            _,
+            _,
+            _,
         ) = get_financial_data(" ".join(required_tickers))
 
         haa = get_hybrid_asset_allocation(momentum_score_simple)
@@ -137,10 +136,10 @@ def main() -> None:
         # 현재 날짜 출력
         current_date = datetime.datetime.today().date()
         print_info_message(f"Asset Allocation Report - {current_date}")
-        LOGGER.info(f"📅 Processing date: {current_date}")
+        LOGGER.info("📅 Processing date: %s", current_date)
 
         # HAA 전략 실행
-        haa_result = execute_haa_strategy(tickers)
+        haa_result = execute_haa_strategy()
         if haa_result:
             print_asset_allocation(
                 haa_result, etf_descriptions, total_number_of_strategy, "[HAA]"
@@ -172,9 +171,10 @@ def main() -> None:
 
         # 실행 결과 요약
         LOGGER.info(
-            f"✅ Asset allocation process completed. "
-            f"{successful_strategies}/{total_number_of_strategy} "
-            f"strategies executed successfully"
+            "✅ Asset allocation process completed. "
+            "%d/%d strategies executed successfully",
+            successful_strategies,
+            total_number_of_strategy,
         )
 
         # 성능 모니터링 결과 출력
@@ -195,7 +195,7 @@ def main() -> None:
 
 def print_asset_allocation(
     asset_allocation: Dict[str, float],
-    etf_descriptions: Dict[str, str],
+    etf_descriptions: Optional[Dict[str, str]],
     total_number_of_strategy: int,
     strategy_name: str,
 ) -> None:

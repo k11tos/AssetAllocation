@@ -178,7 +178,7 @@ def get_bond_dynamic_asset_allocation(
         bond_profit_dict.items(), key=lambda x: x[1], reverse=True
     )[: BDAA_CONFIG.TOP_BONDS_COUNT]
 
-    cash = 0
+    cash: float = 0
     for key, value in bond_profit_top3:
         if value < 0:
             cash += BDAA_CONFIG.BOND_ALLOCATION_RATIO
@@ -216,7 +216,7 @@ def get_korean_all_weather_allocation() -> Dict[str, float]:
         자산 배분 딕셔너리
     """
     kaw_strategy = KoreanAllWeatherStrategy()
-    data = {}  # 한국형 올웨더 전략은 추가 데이터가 필요하지 않음
+    data: Dict[str, Any] = {}  # 한국형 올웨더 전략은 추가 데이터가 필요하지 않음
     return kaw_strategy.execute(data)
 
 
