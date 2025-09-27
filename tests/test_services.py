@@ -98,9 +98,11 @@ class TestDataService(unittest.TestCase):
         """데이터가 없는 경우 테스트"""
         import pandas as pd
 
+        from exceptions import DataRetrievalError
+
         mock_download.return_value = pd.DataFrame()  # 빈 데이터프레임
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(DataRetrievalError):
             self.data_service.get_financial_data("INVALID")
 
     @patch("services.data_service.yf.download")
