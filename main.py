@@ -22,28 +22,12 @@ from portfolio import (
     get_korean_all_weather_allocation,
     print_info_message,
 )
+from utils.logging_config import LoggingConfig
 from utils.performance_monitor import get_performance_monitor
 from utils.strategy_optimizer import get_required_tickers_for_strategy
 
-
 # 로깅 설정
-def setup_logging(log_level: str = "INFO") -> None:
-    """로깅 설정을 초기화합니다."""
-    numeric_level = getattr(logging, log_level.upper(), None)
-    if not isinstance(numeric_level, int):
-        raise ValueError(f"Invalid log level: {log_level}")
-
-    logging.basicConfig(
-        level=numeric_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler("logs/asset_allocation.log", encoding="utf-8"),
-        ],
-    )
-
-
-LOGGER = logging.getLogger(__name__)
+LOGGER = LoggingConfig.get_logger(__name__)
 
 
 def load_tickers(file_path: Optional[str] = None) -> List[str]:
@@ -59,29 +43,37 @@ def load_tickers(file_path: Optional[str] = None) -> List[str]:
             raise ValueError(f"No tickers found in {file_path}")
 
         LOGGER.info(
-            f"Successfully loaded {len(tickers)} tickers from {file_path}"
+            f"📋 Successfully loaded {len(tickers)} tickers from {file_path}"
         )
         return tickers
 
     except FileNotFoundError:
-        LOGGER.error(f"Ticker file not found: {file_path}")
+        LoggingConfig.log_error_with_context(
+            LOGGER,
+            FileNotFoundError(f"Ticker file not found: {file_path}"),
+            "load_tickers",
+        )
         raise
     except json.JSONDecodeError as e:
-        LOGGER.error(f"Invalid JSON format in {file_path}: {str(e)}")
+        LoggingConfig.log_error_with_context(
+            LOGGER, e, "load_tickers", {"file_path": file_path}
+        )
         raise
     except Exception as e:
-        LOGGER.error(f"Unexpected error loading tickers: {str(e)}")
+        LoggingConfig.log_error_with_context(
+            LOGGER, e, "load_tickers", {"file_path": file_path}
+        )
         raise
 
 
 def execute_haa_strategy(tickers: list) -> Optional[Dict[str, float]]:
     """HAA 전략을 최적화된 데이터로 실행합니다."""
     try:
-        LOGGER.info("Starting HAA strategy execution...")
+        LoggingConfig.log_strategy_start(LOGGER, "HAA")
 
         # HAA 전략에 필요한 티커만 추출
         required_tickers = get_required_tickers_for_strategy("haa")
-        print(f"🔍 HAA 전략: {len(required_tickers)}개 자산 데이터 요청")
+        LOGGER.info(f"🔍 HAA 전략: {len(required_tickers)}개 자산 데이터 요청")
 
         (
             momentum_score,
@@ -93,23 +85,32 @@ def execute_haa_strategy(tickers: list) -> Optional[Dict[str, float]]:
         ) = get_financial_data(" ".join(required_tickers))
 
         haa = get_hybrid_asset_allocation(momentum_score_simple)
-        LOGGER.info("HAA strategy executed successfully")
+        LoggingConfig.log_strategy_success(LOGGER, "HAA")
+        LoggingConfig.log_allocation_result(LOGGER, "HAA", haa)
         return haa
 
     except DataValidationError as e:
-        LOGGER.error(f"HAA strategy data validation failed: {str(e)}")
+        LoggingConfig.log_strategy_failure(
+            LOGGER, "HAA", f"Data validation failed: {str(e)}"
+        )
         return None
     except DataRetrievalError as e:
-        LOGGER.error(f"HAA strategy data retrieval failed: {str(e)}")
+        LoggingConfig.log_strategy_failure(
+            LOGGER, "HAA", f"Data retrieval failed: {str(e)}"
+        )
         return None
     except NetworkError as e:
-        LOGGER.error(f"HAA strategy network error: {str(e)}")
+        LoggingConfig.log_strategy_failure(
+            LOGGER, "HAA", f"Network error: {str(e)}"
+        )
         return None
     except StrategyExecutionError as e:
-        LOGGER.error(f"HAA strategy execution failed: {str(e)}")
+        LoggingConfig.log_strategy_failure(
+            LOGGER, "HAA", f"Execution failed: {str(e)}"
+        )
         return None
     except Exception as e:
-        LOGGER.error(f"Unexpected error in HAA strategy: {str(e)}")
+        LoggingConfig.log_error_with_context(LOGGER, e, "HAA strategy")
         return None
 
 
@@ -120,13 +121,10 @@ def main() -> None:
     """
     # 설정 검증
     if not validate_config():
-        LOGGER.error("Configuration validation failed")
+        LOGGER.error("❌ Configuration validation failed")
         sys.exit(1)
 
-    # 로깅 초기화
-    setup_logging(STRATEGY_CONFIG.LOG_LEVEL)
-
-    LOGGER.info("Starting asset allocation process...")
+    LOGGER.info("🚀 Starting asset allocation process...")
 
     total_number_of_strategy = STRATEGY_CONFIG.TOTAL_STRATEGIES
     successful_strategies = 0
@@ -139,7 +137,7 @@ def main() -> None:
         # 현재 날짜 출력
         current_date = datetime.datetime.today().date()
         print_info_message(f"Asset Allocation Report - {current_date}")
-        LOGGER.info(f"Processing date: {current_date}")
+        LOGGER.info(f"📅 Processing date: {current_date}")
 
         # HAA 전략 실행
         haa_result = execute_haa_strategy(tickers)
@@ -149,26 +147,32 @@ def main() -> None:
             )
             successful_strategies += 1
         else:
-            LOGGER.warning("HAA strategy failed - skipping output")
+            LOGGER.warning("⚠️ HAA strategy failed - skipping output")
 
         # 한국형 올웨더 전략 (항상 실행)
         try:
+            LoggingConfig.log_strategy_start(LOGGER, "Korean All-Weather")
             korean_all_weather = get_korean_all_weather_allocation()
             print_asset_allocation(
                 korean_all_weather, None, total_number_of_strategy, "[KAW]"
             )
             successful_strategies += 1
-            LOGGER.info("Korean All-Weather strategy executed successfully")
+            LoggingConfig.log_strategy_success(LOGGER, "Korean All-Weather")
+            LoggingConfig.log_allocation_result(
+                LOGGER, "Korean All-Weather", korean_all_weather
+            )
         except StrategyExecutionError as e:
-            LOGGER.error(
-                f"Korean All-Weather strategy execution failed: {str(e)}"
+            LoggingConfig.log_strategy_failure(
+                LOGGER, "Korean All-Weather", f"Execution failed: {str(e)}"
             )
         except Exception as e:
-            LOGGER.error(f"Korean All-Weather strategy failed: {str(e)}")
+            LoggingConfig.log_error_with_context(
+                LOGGER, e, "Korean All-Weather strategy"
+            )
 
         # 실행 결과 요약
         LOGGER.info(
-            f"Asset allocation process completed. "
+            f"✅ Asset allocation process completed. "
             f"{successful_strategies}/{total_number_of_strategy} "
             f"strategies executed successfully"
         )
@@ -179,13 +183,13 @@ def main() -> None:
 
         if successful_strategies == 0:
             LOGGER.error(
-                "All strategies failed - no allocation recommendations "
+                "❌ All strategies failed - no allocation recommendations "
                 "generated"
             )
             sys.exit(1)
 
     except Exception as e:
-        LOGGER.error(f"Critical error in main process: {str(e)}")
+        LoggingConfig.log_error_with_context(LOGGER, e, "main process")
         sys.exit(1)
 
 

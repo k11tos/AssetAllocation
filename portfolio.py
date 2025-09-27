@@ -13,11 +13,11 @@ from config import BDAA_CONFIG
 from services.communication_service import CommunicationService
 from services.data_service import DataService
 from strategies import HAAStrategy, KoreanAllWeatherStrategy
+from utils.logging_config import LoggingConfig
 
 load_dotenv()
 
-LOGGER = logging.getLogger(__name__)
-logging.basicConfig(level=logging.WARNING)
+LOGGER = LoggingConfig.get_logger(__name__)
 
 
 class AllocationConstants:
@@ -57,16 +57,16 @@ def get_original_dual_momentum(
     odm = {}
 
     LOGGER.debug(
-        "SPY 12 months average: %s",
-        round(profit_12month["SPY"], AllocationConstants.DECIMAL_PLACES),
+        f"📊 SPY 12 months average: "
+        f"{round(profit_12month['SPY'], AllocationConstants.DECIMAL_PLACES)}"
     )
     LOGGER.debug(
-        "BIL 12 months average: %s",
-        round(profit_12month["BIL"], AllocationConstants.DECIMAL_PLACES),
+        f"📊 BIL 12 months average: "
+        f"{round(profit_12month['BIL'], AllocationConstants.DECIMAL_PLACES)}"
     )
     LOGGER.debug(
-        "IEFA 12 months average: %s",
-        round(profit_12month["IEFA"], AllocationConstants.DECIMAL_PLACES),
+        f"📊 IEFA 12 months average: "
+        f"{round(profit_12month['IEFA'], AllocationConstants.DECIMAL_PLACES)}"
     )
 
     if profit_12month["SPY"] > profit_12month["BIL"]:
@@ -233,16 +233,21 @@ def print_info_message(message_string: str) -> None:
 
         if success:
             LOGGER.debug(
-                f"Message sent via Telegram: {message_string[:50]}..."
+                f"📤 Message sent via Telegram: {message_string[:50]}..."
             )
         else:
             LOGGER.info(
-                f"Telegram send failed, logged locally: {message_string}"
+                f"📤 Telegram send failed, logged locally: {message_string}"
             )
 
     except Exception as e:
-        LOGGER.error(f"Failed to send message via Telegram: {str(e)}")
-        LOGGER.info(f"Message logged locally: {message_string}")
+        LoggingConfig.log_error_with_context(
+            LOGGER,
+            e,
+            "print_info_message",
+            {"message_length": len(message_string)},
+        )
+        LOGGER.info(f"📤 Message logged locally: {message_string}")
 
 
 # Service factory functions

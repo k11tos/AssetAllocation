@@ -19,10 +19,11 @@ from config import (
 )
 from exceptions import DataRetrievalError, DataValidationError, NetworkError
 from utils.cache_manager import CacheManager
+from utils.logging_config import LoggingConfig
 from utils.performance_monitor import monitor_performance
 from utils.security import InputValidator, SecurityManager, log_security_event
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = LoggingConfig.get_logger(__name__)
 
 
 class DataService:
@@ -69,7 +70,7 @@ class DataService:
                 raise ValueError("Invalid FRED API key format")
 
             self.fred_account = Fred(api_key=api_key)
-            LOGGER.debug("FRED API initialized successfully")
+            LOGGER.debug("🔑 FRED API initialized successfully")
             log_security_event(
                 "API_INITIALIZED", "FRED API initialized successfully"
             )
@@ -137,10 +138,14 @@ class DataService:
             validated_tickers, **cache_key_params
         )
         if cached_data is not None:
-            LOGGER.info(f"Using cached data for tickers: {validated_tickers}")
+            LoggingConfig.log_data_retrieval(
+                LOGGER, "cache", validated_tickers, cached=True
+            )
             return cached_data
 
-        LOGGER.info(f"Fetching fresh data for tickers: {validated_tickers}")
+        LoggingConfig.log_data_retrieval(
+            LOGGER, "yfinance", validated_tickers, cached=False
+        )
         data = self._fetch_financial_data(validated_tickers)
 
         # 캐시에 저장
@@ -276,7 +281,7 @@ class DataService:
             today_price[ticker] = daily_price[ticker].iloc[-1]
 
         LOGGER.info(
-            f"Successfully processed financial data for "
+            f"✅ Successfully processed financial data for "
             f"{len(tickers.split())} tickers"
         )
 

@@ -14,9 +14,10 @@ from telegram.ext import Updater
 from urllib3.util.retry import Retry
 
 from config import API_CONFIG
+from utils.logging_config import LoggingConfig
 from utils.security import InputValidator, SecurityManager, log_security_event
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = LoggingConfig.get_logger(__name__)
 
 
 class CommunicationService:
@@ -79,7 +80,7 @@ class CommunicationService:
                 "bot": telegram.Bot(api_token),
                 "chat_id": chat_id,
             }
-            LOGGER.debug("Telegram API initialized successfully")
+            LOGGER.debug("📱 Telegram API initialized successfully")
             log_security_event(
                 "API_INITIALIZED", "Telegram API initialized successfully"
             )
@@ -119,20 +120,22 @@ class CommunicationService:
             전송 성공 여부
         """
         if self.telegram_account is None:
-            LOGGER.warning("Telegram not initialized, logging message instead")
-            LOGGER.info(message)
+            LOGGER.warning(
+                "⚠️ Telegram not initialized, logging message instead"
+            )
+            LOGGER.info(f"📝 {message}")
             return False
 
         # 메시지 검증 및 정리
         if not message or not isinstance(message, str):
-            LOGGER.warning("Invalid message format")
+            LOGGER.warning("⚠️ Invalid message format")
             return False
 
         sanitized_message = self.security_manager.sanitize_input(
             message, max_length=4000
         )
         if not sanitized_message:
-            LOGGER.warning("Message sanitization resulted in empty message")
+            LOGGER.warning("⚠️ Message sanitization resulted in empty message")
             return False
 
         try:
@@ -155,7 +158,7 @@ class CommunicationService:
             response.raise_for_status()
 
             LOGGER.debug(
-                f"Message sent successfully: {sanitized_message[:50]}..."
+                f"📤 Message sent successfully: {sanitized_message[:50]}..."
             )
             log_security_event(
                 "MESSAGE_SENT",
