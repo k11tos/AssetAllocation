@@ -4,7 +4,7 @@ Portfolio management module - refactored for better structure
 """
 
 import logging
-from typing import Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -30,7 +30,7 @@ class AllocationConstants:
     DECIMAL_PLACES = 3
 
 
-def get_laa_allocation(sp500, unrate) -> Dict[str, float]:
+def get_laa_allocation(sp500: Any, unrate: Any) -> Dict[str, float]:
     """
     Get allocation for LAA (Lethargic Asset Allocation) strategy
     using the LAA strategy class

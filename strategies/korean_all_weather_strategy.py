@@ -4,7 +4,7 @@ Korean All-Weather strategy implementation
 """
 
 import datetime
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from config import KOREAN_ALL_WEATHER
 
@@ -17,7 +17,7 @@ class KoreanAllWeatherStrategy(BaseStrategy):
     def __init__(self):
         super().__init__("Korean All-Weather")
 
-    def get_required_data_keys(self) -> list:
+    def get_required_data_keys(self) -> List[str]:
         """한국형 올웨더 전략은 추가 데이터가 필요하지 않습니다."""
         return []
 

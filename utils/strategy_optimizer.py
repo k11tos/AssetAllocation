@@ -113,7 +113,7 @@ def get_strategy_optimization_info() -> Dict[str, Dict[str, int]]:
     return info
 
 
-def print_optimization_summary():
+def print_optimization_summary() -> None:
     """최적화 요약 정보를 출력합니다."""
     print("📊 전략별 최적화 요약")
     print("=" * 50)

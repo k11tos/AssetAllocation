@@ -3,7 +3,7 @@
 MDM (Modified Dual Momentum) strategy implementation
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from config import MDM_CONFIG
 
@@ -16,7 +16,7 @@ class MDMStrategy(BaseStrategy):
     def __init__(self):
         super().__init__("MDM")
 
-    def get_required_data_keys(self) -> list:
+    def get_required_data_keys(self) -> List[str]:
         """MDM 전략에 필요한 데이터 키 목록"""
         return ["profit_12month", "profit_6month"]
 

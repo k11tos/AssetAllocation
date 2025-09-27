@@ -309,7 +309,9 @@ class InputValidator:
         return True
 
 
-def get_secure_env_var(var_name: str, default: str = None) -> Optional[str]:
+def get_secure_env_var(
+    var_name: str, default: Optional[str] = None
+) -> Optional[str]:
     """
     환경변수를 안전하게 가져옵니다.
 

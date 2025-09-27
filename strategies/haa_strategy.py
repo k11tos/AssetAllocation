@@ -3,7 +3,7 @@
 HAA (Hybrid Asset Allocation) strategy implementation
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from config import HAA_CONFIG
 
@@ -23,7 +23,7 @@ class HAAStrategy(BaseStrategy):
     def __init__(self):
         super().__init__("HAA")
 
-    def get_required_data_keys(self) -> list:
+    def get_required_data_keys(self) -> List[str]:
         """HAA 전략에 필요한 데이터 키 목록"""
         return ["momentum_score_simple"]
 

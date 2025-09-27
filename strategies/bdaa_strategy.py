@@ -7,7 +7,7 @@ BDAA (Bond Dynamic Asset Allocation) 전략 구현
 - 각 채권에 균등하게 배분
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from config import BDAA_CONFIG
 from strategies.base_strategy import BaseStrategy
@@ -20,7 +20,7 @@ class BDAAStrategy(BaseStrategy):
         super().__init__("BDAA")
         self.config = BDAA_CONFIG
 
-    def get_required_data_keys(self) -> list:
+    def get_required_data_keys(self) -> List[str]:
         """BDAA 전략에 필요한 데이터 키 목록"""
         return ["profit_6month"]
 

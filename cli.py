@@ -7,7 +7,7 @@ import argparse
 import json
 import sys
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from main import main as run_main
 from portfolio import (
@@ -84,7 +84,7 @@ Examples:
     return parser
 
 
-def load_tickers(file_path: str) -> list:
+def load_tickers(file_path: str) -> List[str]:
     """티커 목록을 로드합니다."""
     try:
         with open(file_path, "r", encoding="utf-8") as f:

@@ -3,7 +3,7 @@
 LAA (Lethargic Asset Allocation) strategy implementation
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import numpy as np
 import talib as ta
@@ -19,7 +19,7 @@ class LAAStrategy(BaseStrategy):
     def __init__(self):
         super().__init__("LAA")
 
-    def get_required_data_keys(self) -> list:
+    def get_required_data_keys(self) -> List[str]:
         """LAA 전략에 필요한 데이터 키 목록"""
         return ["sp500", "unrate"]
 

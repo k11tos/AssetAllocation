@@ -3,7 +3,7 @@
 BAA (Bold Asset Allocation) strategy implementation
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from config import BAA_CONFIG
 
@@ -16,7 +16,7 @@ class BAAStrategy(BaseStrategy):
     def __init__(self):
         super().__init__("BAA")
 
-    def get_required_data_keys(self) -> list:
+    def get_required_data_keys(self) -> List[str]:
         """BAA 전략에 필요한 데이터 키 목록"""
         return ["momentum_score", "sma_12month", "today_price"]
 

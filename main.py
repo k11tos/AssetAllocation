@@ -7,7 +7,7 @@ import datetime
 import json
 import logging
 import sys
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from config import STRATEGY_CONFIG, validate_config
 from exceptions import (
@@ -46,7 +46,7 @@ def setup_logging(log_level: str = "INFO") -> None:
 LOGGER = logging.getLogger(__name__)
 
 
-def load_tickers(file_path: str = None) -> list:
+def load_tickers(file_path: Optional[str] = None) -> List[str]:
     """ETF 티커 목록을 로드합니다."""
     if file_path is None:
         file_path = STRATEGY_CONFIG.TICKER_FILE

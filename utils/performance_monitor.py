@@ -7,7 +7,7 @@ import logging
 import time
 from contextlib import contextmanager
 from functools import wraps
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
 LOGGER = logging.getLogger(__name__)
 
@@ -139,7 +139,7 @@ def get_performance_monitor() -> PerformanceMonitor:
     return _performance_monitor
 
 
-def monitor_performance(func_name: str = None):
+def monitor_performance(func_name: Optional[str] = None):
     """성능 모니터링 데코레이터"""
     monitor = get_performance_monitor()
     return monitor.time_function(func_name)

@@ -5,7 +5,7 @@ Base strategy class for asset allocation strategies
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from exceptions import DataValidationError, StrategyExecutionError
 
@@ -33,7 +33,7 @@ class BaseStrategy(ABC):
         pass
 
     @abstractmethod
-    def get_required_data_keys(self) -> list:
+    def get_required_data_keys(self) -> List[str]:
         """
         전략 실행에 필요한 데이터 키 목록을 반환합니다.
 
