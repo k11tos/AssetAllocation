@@ -135,7 +135,12 @@ def main() -> None:
 
         # 현재 날짜 출력
         current_date = datetime.datetime.today().date()
-        print_info_message(f"Asset Allocation Report - {current_date}")
+        formatted_date = current_date.strftime("%Y년 %m월 %d일")
+        weekday = current_date.strftime("%A")
+
+        # 헤더 메시지를 개별 메시지로 분할
+        print_info_message("자산 배분 리포트")
+        print_info_message(f"{formatted_date} ({weekday})")
         LOGGER.info("📅 Processing date: %s", current_date)
 
         # HAA 전략 실행
@@ -170,6 +175,15 @@ def main() -> None:
             )
 
         # 실행 결과 요약
+        success_rate = (successful_strategies / total_number_of_strategy) * 100
+
+        # 요약 메시지 단순화
+        success_message = (
+            f"성공률: {success_rate:.1f}% "
+            f"({successful_strategies}/{total_number_of_strategy})"
+        )
+        print_info_message(success_message)
+
         LOGGER.info(
             "✅ Asset allocation process completed. "
             "%d/%d strategies executed successfully",
@@ -200,25 +214,67 @@ def print_asset_allocation(
     strategy_name: str,
 ) -> None:
     """
-    Print asset allocation results
+    Print asset allocation results with enhanced Telegram formatting
     :param asset_allocation: Dictionary with asset allocation
     :param etf_descriptions: Dictionary mapping tickers to descriptions
     :param total_number_of_strategy: Total number of strategies
     :param strategy_name: Name of the strategy
     :return: None
     """
-    if etf_descriptions is not None:
-        for key, value in asset_allocation.items():
-            print_info_message(
-                f"{strategy_name} {etf_descriptions[key]}: "
-                f"{round(value / total_number_of_strategy, 2)} %"
-            )
-    else:
-        for key, value in asset_allocation.items():
-            print_info_message(
-                f"{strategy_name} {key}: "
-                f"{round(value / total_number_of_strategy, 2)} %"
-            )
+
+    # 메시지 헤더 구성 (간단한 포맷)
+    strategy_display_name = strategy_name.replace("[", "").replace("]", "")
+    header = f"{strategy_display_name} Strategy\n"
+
+    # 자산 배분 정보 구성
+    allocations = []
+    total_allocation = 0
+
+    for key, value in asset_allocation.items():
+        percentage = round(value / total_number_of_strategy, 2)
+        total_allocation += percentage
+
+        # 자산별 이모지 매핑
+        asset_emojis = {
+            "SPY": "🇺🇸",
+            "IWM": "🇺🇸",
+            "IEFA": "🌍",
+            "IEMG": "🌏",
+            "TLT": "📊",
+            "IEF": "📊",
+            "PDBC": "🛢️",
+            "VNQ": "🏢",
+            "AGG": "📈",
+            "LQD": "💼",
+            "SHY": "💰",
+            "CASH": "💵",
+            "TIGER S&P500": "🐅",
+            "KOSEF 200TR": "🇰🇷",
+            "KODEX 골드선물(H)": "🥇",
+            "TIGER 미국채 10년 선물": "📊",
+            "KOSEF 국고채 10년": "🏛️",
+            "QQQ": "🚀",
+            "GLD": "🥇",
+        }
+
+        asset_emoji = asset_emojis.get(key, "📈")
+        display_name = (
+            etf_descriptions.get(key, key) if etf_descriptions else key
+        )
+
+        # 단순한 포맷 - 진행률 바 제거
+        allocation_text = (
+            f"{asset_emoji} {display_name}: {percentage:>6.2f}%\n"
+        )
+        allocations.append(allocation_text)
+
+    # 텔레그램 줄바꿈 문제 해결: 모든 요소를 개별 메시지로 전송
+    print_info_message(header.strip())
+
+    for allocation in allocations:
+        clean_allocation = allocation.strip()
+        if clean_allocation:
+            print_info_message(clean_allocation)
 
 
 if __name__ == "__main__":

@@ -105,13 +105,19 @@ class SecurityManager:
 
         return True
 
-    def sanitize_input(self, input_string: str, max_length: int = 1000) -> str:
+    def sanitize_input(
+        self,
+        input_string: str,
+        max_length: int = 1000,
+        allow_html: bool = False,
+    ) -> str:
         """
         사용자 입력을 정리합니다.
 
         Args:
             input_string: 정리할 입력 문자열
             max_length: 최대 길이
+            allow_html: HTML 태그 허용 여부
 
         Returns:
             정리된 문자열
@@ -122,22 +128,38 @@ class SecurityManager:
         # 길이 제한
         sanitized = input_string[:max_length]
 
-        # 위험한 문자 제거
-        dangerous_chars = [
-            "<",
-            ">",
-            '"',
-            "'",
-            "&",
-            ";",
-            "(",
-            ")",
-            "|",
-            "`",
-            "$",
-        ]
-        for char in dangerous_chars:
-            sanitized = sanitized.replace(char, "")
+        # 위험한 문자 제거 (HTML 허용 시 제외)
+        if not allow_html:
+            dangerous_chars = [
+                "<",
+                ">",
+                '"',
+                "'",
+                "&",
+                ";",
+                "(",
+                ")",
+                "|",
+                "`",
+                "$",
+            ]
+            for char in dangerous_chars:
+                sanitized = sanitized.replace(char, "")
+        else:
+            # HTML 허용 시 위험한 문자만 제거 (HTML 태그는 보존)
+            dangerous_chars = [
+                '"',
+                "'",
+                "&",
+                ";",
+                "(",
+                ")",
+                "|",
+                "`",
+                "$",
+            ]
+            for char in dangerous_chars:
+                sanitized = sanitized.replace(char, "")
 
         # 연속된 공백 제거
         sanitized = re.sub(r"\s+", " ", sanitized).strip()
