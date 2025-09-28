@@ -231,11 +231,15 @@ AssetAllocation/
 - `python-telegram-bot`: Telegram bot integration
 - `fredapi`: Federal Reserve Economic Data API
 - `python-dotenv`: Environment variable management
+- `talib`: Technical analysis library
 
 ### Development Dependencies
 - `pytest`: Testing framework
 - `pytest-cov`: Coverage reporting
 - `pytest-mock`: Mocking utilities
+- `sphinx`: Documentation generation
+- `sphinx-rtd-theme`: Read the Docs theme
+- `sphinx-autodoc-typehints`: Type hints support
 
 ## 🔧 Configuration
 
@@ -288,13 +292,42 @@ KAW,TIGER S&P500,10.00
 KAW,KOSEF 200TR,10.00
 ```
 
+## 📚 Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+- **Installation Guide**: Detailed setup instructions
+- **Quick Start**: Get up and running quickly
+- **API Reference**: Complete API documentation
+- **Strategy Guide**: Detailed strategy explanations
+- **Configuration**: Configuration options and examples
+- **Examples**: Usage examples and best practices
+- **Contributing**: How to contribute to the project
+
+### Building Documentation
+
+```bash
+# Install documentation dependencies
+uv add --dev sphinx sphinx-rtd-theme sphinx-autodoc-typehints
+
+# Build documentation
+cd docs
+uv run sphinx-build -b html source build
+
+# View documentation
+open build/index.html
+```
+
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Add tests for new functionality
 4. Ensure all tests pass
-5. Submit a pull request
+5. Update documentation if needed
+6. Submit a pull request
+
+See the [Contributing Guide](docs/source/contributing.rst) for detailed information.
 
 ## 📄 License
 
