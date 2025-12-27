@@ -27,6 +27,8 @@ RUN wget --timeout=30 --tries=3 https://sourceforge.net/projects/ta-lib/files/ta
 
 # Copy project files and install Python dependencies
 COPY pyproject.toml uv.lock README.md ./
+COPY strategies services utils ./
+COPY config.py exceptions.py main.py portfolio.py cli.py ./
 RUN pip install --no-cache-dir -e .
 
 # Runtime stage

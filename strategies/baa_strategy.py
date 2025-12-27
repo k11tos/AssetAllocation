@@ -36,8 +36,13 @@ class BAAStrategy(BaseStrategy):
 
         baa = {}
 
-        # 모든 모멘텀 스코어가 양수인지 확인 (캐너리 신호)
-        canary = all(score >= 0 for score in momentum_score.values())
+        # 공격자 티커의 모멘텀 스코어가 모두 양수인지 확인 (캐너리 신호)
+        if BAA_CONFIG.ATTACKER_TICKERS is None:
+            raise ValueError("ATTACKER_TICKERS is not configured")
+        canary = all(
+            momentum_score.get(ticker, 0) >= 0
+            for ticker in BAA_CONFIG.ATTACKER_TICKERS
+        )
 
         if canary:
             # 공격자 자산 중 최고 모멘텀 스코어 자산 선택

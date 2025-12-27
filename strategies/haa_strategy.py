@@ -54,13 +54,16 @@ class HAAStrategy(BaseStrategy):
                     attacker_dict.items(), key=lambda x: x[1], reverse=True
                 )[: HAA_CONFIG.TOP_ATTACKERS_COUNT]
             )
-            for key in attacker_profit_top4.keys():
-                haa[key] = (
-                    AllocationConstants.FULL_ALLOCATION
-                    / HAA_CONFIG.TOP_ATTACKERS_COUNT
+            # 실제 선택된 자산 수로 나누어 항상 100% 배분 보장
+            num_selected = len(attacker_profit_top4)
+            if num_selected > 0:
+                allocation_per_asset = (
+                    AllocationConstants.FULL_ALLOCATION / num_selected
                 )
+                for key in attacker_profit_top4.keys():
+                    haa[key] = allocation_per_asset
             self.logger.debug(
-                f"TIP > 0, using top {HAA_CONFIG.TOP_ATTACKERS_COUNT} "
+                f"TIP > 0, using top {num_selected} "
                 f"attackers: {list(attacker_profit_top4.keys())}"
             )
 

@@ -37,17 +37,20 @@ class VAAStrategy(BaseStrategy):
         for ticker, score in momentum_score.items():
             self.logger.debug(f"{ticker} momentum score: {round(score, 3)}")
 
-        # 모든 모멘텀 스코어가 양수인 경우 공격자 자산 선택
-        if all(score >= 0 for score in momentum_score.values()):
-            if VAA_CONFIG.ATTACKER_TICKERS is None:
-                raise ValueError("ATTACKER_TICKERS is not configured")
+        # 공격자 티커의 모멘텀 스코어가 모두 양수인 경우 공격자 자산 선택
+        if VAA_CONFIG.ATTACKER_TICKERS is None:
+            raise ValueError("ATTACKER_TICKERS is not configured")
+        if all(
+            momentum_score.get(ticker, 0) >= 0
+            for ticker in VAA_CONFIG.ATTACKER_TICKERS
+        ):
             attacker_ticker = max(
                 VAA_CONFIG.ATTACKER_TICKERS,
                 key=lambda x: momentum_score.get(x, float("-inf")),
             )
             vaa[attacker_ticker] = 100
             self.logger.debug(
-                f"All momentum scores >= 0, selecting attacker: "
+                f"All attacker momentum scores >= 0, selecting attacker: "
                 f"{attacker_ticker}"
             )
         else:
@@ -60,7 +63,7 @@ class VAAStrategy(BaseStrategy):
             )
             vaa[defender_ticker] = 100
             self.logger.debug(
-                f"Some momentum scores < 0, selecting defender: "
+                f"Some attacker momentum scores < 0, selecting defender: "
                 f"{defender_ticker}"
             )
 
