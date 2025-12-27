@@ -150,10 +150,7 @@ class SecurityManager:
             dangerous_chars = [
                 '"',
                 "'",
-                "&",
                 ";",
-                "(",
-                ")",
                 "|",
                 "`",
                 "$",

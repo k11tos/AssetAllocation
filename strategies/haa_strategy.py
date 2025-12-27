@@ -48,7 +48,10 @@ class HAAStrategy(BaseStrategy):
         }
 
         # TIP이 양수인 경우 상위 4개 공격자 자산에 균등 배분
-        if momentum_score_simple.get("TIP", 0) > HAA_CONFIG.TIP_THRESHOLD:
+        if (
+            momentum_score_simple.get("TIP", 0) > HAA_CONFIG.TIP_THRESHOLD
+            and attacker_dict
+        ):
             attacker_profit_top4 = dict(
                 sorted(
                     attacker_dict.items(), key=lambda x: x[1], reverse=True

@@ -39,18 +39,19 @@ class BAAStrategy(BaseStrategy):
         # 공격자 티커의 모멘텀 스코어가 모두 양수인지 확인 (캐너리 신호)
         if BAA_CONFIG.ATTACKER_TICKERS is None:
             raise ValueError("ATTACKER_TICKERS is not configured")
+        attacker_momentum_score = {
+            ticker: score
+            for ticker, score in momentum_score.items()
+            if ticker in BAA_CONFIG.ATTACKER_TICKERS
+        }
+
         canary = all(
             momentum_score.get(ticker, 0) >= 0
             for ticker in BAA_CONFIG.ATTACKER_TICKERS
         )
 
-        if canary:
+        if canary and attacker_momentum_score:
             # 공격자 자산 중 최고 모멘텀 스코어 자산 선택
-            attacker_momentum_score = {
-                ticker: score
-                for ticker, score in momentum_score.items()
-                if ticker in BAA_CONFIG.ATTACKER_TICKERS
-            }
             top_attacker = max(
                 attacker_momentum_score,
                 key=lambda x: attacker_momentum_score[x],
@@ -60,6 +61,12 @@ class BAAStrategy(BaseStrategy):
                 f"Canary signal positive, selecting attacker: {top_attacker}"
             )
         else:
+            if canary and not attacker_momentum_score:
+                self.logger.warning(
+                    "Canary signal positive but no attacker data found. "
+                    "Switching to defensive mode."
+                )
+
             # 방어자 자산들의 가격/이동평균 비율 계산
             price_index = {
                 defender: today_price[defender] / sma_12month[defender]
