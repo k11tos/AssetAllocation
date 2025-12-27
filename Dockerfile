@@ -19,7 +19,7 @@ RUN apk add --no-cache \
 RUN wget --timeout=30 --tries=3 https://sourceforge.net/projects/ta-lib/files/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz/download -O ta-lib-0.4.0-src.tar.gz && \
     tar -xzf ta-lib-0.4.0-src.tar.gz && \
     cd ta-lib && \
-    ./configure --prefix=/usr --build=aarch64-unknown-linux-gnu && \
+    ./configure --prefix=/usr && \
     make && \
     make install && \
     cd .. && \

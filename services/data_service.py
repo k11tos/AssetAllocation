@@ -139,12 +139,12 @@ class DataService:
         )
         if cached_data is not None:
             LoggingConfig.log_data_retrieval(
-                LOGGER, "cache", list(validated_tickers), cached=True
+                LOGGER, "cache", valid_tickers, cached=True
             )
             return cached_data
 
         LoggingConfig.log_data_retrieval(
-            LOGGER, "yfinance", list(validated_tickers), cached=False
+            LOGGER, "yfinance", valid_tickers, cached=False
         )
         data = self._fetch_financial_data(validated_tickers)
 
