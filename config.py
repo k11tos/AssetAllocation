@@ -197,7 +197,7 @@ class BDAAConfig:
 
     BOND_TICKERS: Optional[List[str]] = None
     TOP_BONDS_COUNT: int = 3
-    BOND_ALLOCATION_RATIO: float = 100.0 / TOP_BONDS_COUNT
+    BOND_ALLOCATION_RATIO: float = 0.0  # __post_init__에서 계산
 
     def __post_init__(self):
         if self.BOND_TICKERS is None:
@@ -211,6 +211,8 @@ class BDAAConfig:
                 "BWX",
                 "EMB",
             ]
+        # TOP_BONDS_COUNT가 설정된 후 비율 계산
+        self.BOND_ALLOCATION_RATIO = 100.0 / self.TOP_BONDS_COUNT
 
 
 @dataclass
@@ -219,7 +221,7 @@ class MDMConfig:
 
     BOND_TICKERS: Optional[List[str]] = None
     TOP_BONDS_COUNT: int = 3
-    BOND_ALLOCATION_RATIO: float = 100.0 / TOP_BONDS_COUNT
+    BOND_ALLOCATION_RATIO: float = 0.0  # __post_init__에서 계산
 
     def __post_init__(self):
         if self.BOND_TICKERS is None:
@@ -233,6 +235,8 @@ class MDMConfig:
                 "BWX",
                 "EMB",
             ]
+        # TOP_BONDS_COUNT가 설정된 후 비율 계산
+        self.BOND_ALLOCATION_RATIO = 100.0 / self.TOP_BONDS_COUNT
 
 
 @dataclass

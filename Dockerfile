@@ -48,6 +48,9 @@ RUN apk add --no-cache \
 # Copy Python packages from build stage
 COPY --from=build /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 
+# Copy TA-Lib shared library from build stage
+COPY --from=build /usr/lib/libta_lib.so* /usr/lib/
+
 # Copy project files
 COPY . .
 

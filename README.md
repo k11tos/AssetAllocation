@@ -28,6 +28,12 @@ A Python application for implementing various asset allocation strategies includ
 - **JSON**: Machine-readable format for API integration
 - **CSV**: Spreadsheet-compatible format for analysis
 
+### 🔄 Rebalancing Calculator
+- **Input current prices and balances**: Calculate target quantities for rebalancing
+- **Automatic portfolio value calculation**: Determine optimal allocation
+- **Detailed action reports**: Buy/Sell/Hold recommendations with exact quantities
+- **Multiple output formats**: Text, JSON, or CSV for easy analysis
+
 ### 🔗 Integrations
 - **Telegram Integration**: Automated portfolio updates via Telegram bot
 - **FRED API Integration**: Economic data integration (optional)
@@ -122,6 +128,11 @@ uv run asset-cli --clear-cache
 
 # Performance monitoring
 uv run asset-cli --performance
+
+# Rebalancing calculation
+uv run asset-cli --rebalance rebalance_example.json
+uv run asset-cli --rebalance rebalance_example.json --output json
+uv run asset-cli --rebalance rebalance_example.json --output csv
 
 # Custom ticker file
 uv run asset-cli --tickers custom_tickers.json
@@ -281,6 +292,26 @@ The application uses a centralized configuration system in `config.py`:
 }
 ```
 
+### Rebalancing Output Example
+```json
+{
+  "timestamp": "2024-01-15T10:30:00",
+  "rebalancing": {
+    "SPY": {
+      "current_value": 4505.00,
+      "target_value": 4750.00,
+      "current_quantity": 10,
+      "target_quantity": 11,
+      "quantity_diff": 1,
+      "action": "매수",
+      "price": 450.50,
+      "target_allocation_pct": 25.0,
+      "current_allocation_pct": 20.0
+    }
+  }
+}
+```
+
 ### CSV Output
 ```csv
 Strategy,Asset,Percentage
@@ -290,6 +321,79 @@ HAA,IEFA,25.00
 HAA,TLT,25.00
 KAW,TIGER S&P500,10.00
 KAW,KOSEF 200TR,10.00
+```
+
+## 🔄 Rebalancing Usage
+
+The rebalancing calculator helps you determine exact buy/sell quantities to achieve your target asset allocation.
+
+### Step 1: Create a rebalancing input file
+
+Create a JSON file (e.g., `rebalance_example.json`) with the following structure:
+
+```json
+{
+  "allocation": {
+    "SPY": 25.0,
+    "IWM": 25.0,
+    "IEFA": 25.0,
+    "TLT": 25.0
+  },
+  "current_prices": {
+    "SPY": 450.50,
+    "IWM": 195.75,
+    "IEFA": 68.30,
+    "TLT": 95.20
+  },
+  "current_balances": {
+    "SPY": 10,
+    "IWM": 25,
+    "IEFA": 35,
+    "TLT": 50
+  }
+}
+```
+
+**Fields:**
+- `allocation`: Target asset allocation percentages
+- `current_prices`: Current prices for each asset
+- `current_balances`: Current number of shares/units held
+
+### Step 2: Run the rebalancing calculator
+
+```bash
+# Text output (default)
+uv run asset-cli --rebalance rebalance_example.json
+
+# JSON output
+uv run asset-cli --rebalance rebalance_example.json --output json
+
+# CSV output
+uv run asset-cli --rebalance rebalance_example.json --output csv
+```
+
+### Step 3: Review the results
+
+The calculator will provide:
+- Current portfolio value and allocation
+- Target allocation for each asset
+- Exact number of shares to buy or sell
+- Detailed action recommendations
+
+Example text output:
+```
+리밸런싱 리포트 - 2024-01-15 10:30:00
+================================================================================
+
+SPY:
+  현재가: $450.50
+  현재 수량: 10
+  현재 가치: $4505.00
+  현재 비중: 20.00%
+  목표 비중: 25.00%
+  목표 가치: $4750.00
+  목표 수량: 11
+  조치: 매수 (+1 주)
 ```
 
 ## 📚 Documentation

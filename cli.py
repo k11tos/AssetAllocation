@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from main import main as run_main
 from portfolio import (
+    calculate_rebalancing,
     get_baa_allocation,
     get_bdaa_allocation,
     get_hybrid_asset_allocation,
@@ -81,6 +82,13 @@ Examples:
         "--performance", action="store_true", help="성능 모니터링 결과 출력"
     )
 
+    # 리밸런싱
+    parser.add_argument(
+        "--rebalance",
+        type=str,
+        help="리밸런싱 정보가 담긴 JSON 파일 경로",
+    )
+
     return parser
 
 
@@ -148,6 +156,93 @@ def format_output_csv(results: Dict[str, Any]) -> str:
 
         for asset, percentage in allocation.items():
             writer.writerow([strategy_name, asset, f"{percentage:.2f}"])
+
+    return output.getvalue()
+
+
+def load_rebalance_data(file_path: str) -> Dict[str, Any]:
+    """리밸런싱 데이터를 로드합니다."""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data
+    except FileNotFoundError:
+        print(f"Error: Rebalance file not found: {file_path}")
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in rebalance file: {e}")
+        sys.exit(1)
+
+
+def format_rebalance_text(rebalance_results: Dict[str, Any]) -> str:
+    """리밸런싱 결과를 텍스트 형식으로 포맷합니다."""
+    output = []
+    output.append(f"리밸런싱 리포트 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    output.append("=" * 80)
+
+    for ticker, info in rebalance_results.items():
+        output.append(f"\n{ticker}:")
+        output.append(f"  현재가: ${info['price']:.2f}")
+        output.append(f"  현재 수량: {info['current_quantity']}")
+        output.append(f"  현재 가치: ${info['current_value']:.2f}")
+        output.append(f"  현재 비중: {info['current_allocation_pct']:.2f}%")
+        output.append(f"  목표 비중: {info['target_allocation_pct']:.2f}%")
+        output.append(f"  목표 가치: ${info['target_value']:.2f}")
+        output.append(f"  목표 수량: {info['target_quantity']}")
+        output.append(f"  조치: {info['action']} ({info['quantity_diff']:+d} 주)")
+
+    return "\n".join(output)
+
+
+def format_rebalance_json(rebalance_results: Dict[str, Any]) -> str:
+    """리밸런싱 결과를 JSON 형식으로 포맷합니다."""
+    output_data = {
+        "timestamp": datetime.now().isoformat(),
+        "rebalancing": rebalance_results,
+    }
+    return json.dumps(output_data, indent=2, ensure_ascii=False)
+
+
+def format_rebalance_csv(rebalance_results: Dict[str, Any]) -> str:
+    """리밸런싱 결과를 CSV 형식으로 포맷합니다."""
+    import csv
+    import io
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # 헤더
+    writer.writerow(
+        [
+            "Ticker",
+            "현재가",
+            "현재 수량",
+            "현재 가치",
+            "현재 비중 (%)",
+            "목표 비중 (%)",
+            "목표 가치",
+            "목표 수량",
+            "차이",
+            "조치",
+        ]
+    )
+
+    # 데이터
+    for ticker, info in rebalance_results.items():
+        writer.writerow(
+            [
+                ticker,
+                f"{info['price']:.2f}",
+                info["current_quantity"],
+                f"{info['current_value']:.2f}",
+                f"{info['current_allocation_pct']:.2f}",
+                f"{info['target_allocation_pct']:.2f}",
+                f"{info['target_value']:.2f}",
+                info["target_quantity"],
+                info["quantity_diff"],
+                info["action"],
+            ]
+        )
 
     return output.getvalue()
 
@@ -298,6 +393,39 @@ def main():
         import logging
 
         logging.getLogger().setLevel(logging.DEBUG)
+
+    # 리밸런싱 모드
+    if args.rebalance:
+        rebalance_data = load_rebalance_data(args.rebalance)
+
+        # 필수 필드 검증
+        required_fields = ["allocation", "current_prices", "current_balances"]
+        for field in required_fields:
+            if field not in rebalance_data:
+                print(
+                    f"Error: Missing required field '{field}' "
+                    f"in rebalance file"
+                )
+                sys.exit(1)
+
+        allocation = rebalance_data["allocation"]
+        current_prices = rebalance_data["current_prices"]
+        current_balances = rebalance_data["current_balances"]
+
+        # 리밸런싱 계산
+        rebalance_results = calculate_rebalancing(
+            allocation, current_prices, current_balances
+        )
+
+        # 출력 형식에 따라 결과 출력
+        if args.output == "json":
+            print(format_rebalance_json(rebalance_results))
+        elif args.output == "csv":
+            print(format_rebalance_csv(rebalance_results))
+        else:  # text
+            print(format_rebalance_text(rebalance_results))
+
+        return
 
     # 캐시 관리
     if args.cache_stats or args.clear_cache:

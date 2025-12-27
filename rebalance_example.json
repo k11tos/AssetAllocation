@@ -1,0 +1,20 @@
+{
+  "allocation": {
+    "SPY": 25.0,
+    "IWM": 25.0,
+    "IEFA": 25.0,
+    "TLT": 25.0
+  },
+  "current_prices": {
+    "SPY": 450.50,
+    "IWM": 195.75,
+    "IEFA": 68.30,
+    "TLT": 95.20
+  },
+  "current_balances": {
+    "SPY": 10,
+    "IWM": 25,
+    "IEFA": 35,
+    "TLT": 50
+  }
+}

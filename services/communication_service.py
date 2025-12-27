@@ -5,12 +5,13 @@ Communication service for messaging and notifications
 
 import asyncio
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import requests
 import telegram
 from requests.adapters import HTTPAdapter
-from telegram.ext import Updater
+from telegram import Bot
+from telegram.ext import Application
 from urllib3.util.retry import Retry
 
 from config import API_CONFIG
@@ -178,7 +179,7 @@ class CommunicationService:
 
     def get_telegram_bot(
         self, mode: str = "information"
-    ) -> Optional[telegram.Bot]:
+    ) -> Optional[Union[telegram.Bot, Application]]:
         """
         텔레그램 봇 인스턴스를 반환합니다.
 
@@ -195,8 +196,11 @@ class CommunicationService:
             if mode == "information":
                 return self.telegram_account["bot"]
             elif mode == "conversation":
-                return Updater(
-                    token=self.telegram_account["bot"].token, use_context=True
+                # python-telegram-bot 22.3+에서는 Application.builder() 사용
+                return (
+                    Application.builder()
+                    .token(self.telegram_account["bot"].token)
+                    .build()
                 )
             else:
                 LOGGER.error(f"Invalid mode for telegram bot: {mode}")

@@ -2,7 +2,7 @@
 BDAA (Bond Dynamic Asset Allocation) 전략 구현
 
 채권 동적 자산 배분 전략:
-- 6개월 수익률 기준으로 상위 3개 채권 선택
+- 6개월 수익률 기준으로 상위 N개 채권 선택 (설정 가능)
 - 수익률이 음수인 채권은 현금으로 전환
 - 각 채권에 균등하게 배분
 """
@@ -45,12 +45,14 @@ class BDAAStrategy(BaseStrategy):
             for bond in self.config.BOND_TICKERS
         }
 
-        # 상위 3개 채권 선택
+        # 상위 N개 채권 선택 (설정값 사용)
         bond_profit_top3 = sorted(
             bond_profit_dict.items(), key=lambda x: x[1], reverse=True
-        )[:3]
+        )[: self.config.TOP_BONDS_COUNT]
 
-        self.logger.debug(f"Top 3 bonds: {bond_profit_top3}")
+        self.logger.debug(
+            f"Top {self.config.TOP_BONDS_COUNT} bonds: {bond_profit_top3}"
+        )
 
         bdaa = {}
         cash = 0

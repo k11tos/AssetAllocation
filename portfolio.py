@@ -283,3 +283,74 @@ def get_financial_data(
     """
     data_service = get_data_service()
     return data_service.get_financial_data(tickers)
+
+
+def calculate_rebalancing(
+    allocation: Dict[str, float],
+    current_prices: Dict[str, float],
+    current_balances: Dict[str, int],
+    total_portfolio_value: Optional[float] = None,
+) -> Dict[str, Dict[str, Union[float, int]]]:
+    """
+    현재가와 잔고를 입력받아 리밸런싱 수량을 계산합니다.
+
+    Args:
+        allocation: 자산 배분 딕셔너리 (티커: 비율 %)
+        current_prices: 현재가 딕셔너리 (티커: 가격)
+        current_balances: 현재 잔고 딕셔너리 (티커: 수량)
+        total_portfolio_value: 총 포트폴리오 가치 (선택, 자동 계산 가능)
+
+    Returns:
+        각 자산별 리밸런싱 정보 (현재 가치, 목표 가치, 매수/매도 수량 등)
+    """
+    # 1. 총 포트폴리오 가치 계산
+    if total_portfolio_value is None:
+        total_portfolio_value = sum(
+            current_prices.get(ticker, 0) * qty
+            for ticker, qty in current_balances.items()
+        )
+
+    rebalance_info = {}
+
+    for ticker, target_pct in allocation.items():
+        price = current_prices.get(ticker, 0)
+        current_qty = current_balances.get(ticker, 0)
+
+        # 현재 가치와 목표 가치 계산
+        current_value = price * current_qty
+        target_value = total_portfolio_value * (target_pct / 100)
+
+        # 목표 수량 계산 (정수로 반올림)
+        if price > 0:
+            target_qty = int(target_value / price)
+        else:
+            target_qty = 0
+
+        # 매수/매도 수량 차이
+        qty_diff = target_qty - current_qty
+
+        # 액션 결정
+        if qty_diff > 0:
+            action = "매수"
+        elif qty_diff < 0:
+            action = "매도"
+        else:
+            action = "유지"
+
+        rebalance_info[ticker] = {
+            "current_value": round(current_value, 2),
+            "target_value": round(target_value, 2),
+            "current_quantity": current_qty,
+            "target_quantity": target_qty,
+            "quantity_diff": qty_diff,
+            "action": action,
+            "price": round(price, 2),
+            "target_allocation_pct": target_pct,
+            "current_allocation_pct": round(
+                (current_value / total_portfolio_value * 100), 2
+            )
+            if total_portfolio_value > 0
+            else 0,
+        }
+
+    return rebalance_info
