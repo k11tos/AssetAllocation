@@ -435,4 +435,4 @@ See the [Contributing Guide](docs/source/contributing.rst) for detailed informat
 
 ## 📄 License
 
-This project is for educational and research purposes.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
