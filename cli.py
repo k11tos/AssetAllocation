@@ -9,6 +9,7 @@ import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from config import STRATEGY_CONFIG
 from main import main as run_main
 from portfolio import (
     calculate_rebalancing,
@@ -393,6 +394,13 @@ def main():
         import logging
 
         logging.getLogger().setLevel(logging.DEBUG)
+
+    # 티커 파일 설정
+    if args.tickers:
+        # 티커 파일 유효성 검증 및 로드
+        load_tickers(args.tickers)
+        # 설정 업데이트
+        STRATEGY_CONFIG.TICKER_FILE = args.tickers
 
     # 리밸런싱 모드
     if args.rebalance:

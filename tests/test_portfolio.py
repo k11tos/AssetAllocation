@@ -119,7 +119,8 @@ class TestRebalancing:
         assert result["SPY"]["target_quantity"] == 0
         assert result["SPY"]["current_quantity"] == 10
         # 가격이 0이고 목표 수량이 0이면 매도 또는 유지
-        assert result["SPY"]["action"] in ["매도", "유지"]
+        # FIX: 할당 비율이 존재하는데 가격이 0인 경우 데이터 부재로 간주
+        assert result["SPY"]["action"] == "가격 정보 없음"
 
     def test_calculate_rebalancing_multiple_assets(self):
         """여러 자산을 포함한 리밸런싱 테스트"""

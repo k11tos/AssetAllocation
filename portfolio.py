@@ -312,9 +312,17 @@ def calculate_rebalancing(
 
     rebalance_info = {}
 
-    for ticker, target_pct in allocation.items():
+    all_tickers = set(allocation.keys()) | set(current_balances.keys())
+
+    for ticker in all_tickers:
+        target_pct = allocation.get(ticker, 0.0)
         price = current_prices.get(ticker, 0)
         current_qty = current_balances.get(ticker, 0)
+
+        # Skip if we have no balance and no allocation
+        # (shouldn't happen with the set logic, but good for safety)
+        if current_qty == 0 and target_pct == 0:
+            continue
 
         # 현재 가치와 목표 가치 계산
         current_value = price * current_qty
@@ -330,7 +338,9 @@ def calculate_rebalancing(
         qty_diff = target_qty - current_qty
 
         # 액션 결정
-        if qty_diff > 0:
+        if price <= 0 and target_pct > 0:
+            action = "가격 정보 없음"
+        elif qty_diff > 0:
             action = "매수"
         elif qty_diff < 0:
             action = "매도"
