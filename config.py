@@ -181,7 +181,7 @@ class LAAConfig:
     """LAA (Lethargic Asset Allocation) 전략 설정"""
 
     BASE_ALLOCATION: Optional[Dict[str, float]] = None
-    SP500_MA_DAYS: int = 138
+    SP500_MA_DAYS: int = 200
     UNRATE_MA_MONTHS: int = 12
     QQQ_ALLOCATION: float = 25.0
     SHY_ALLOCATION: float = 25.0
