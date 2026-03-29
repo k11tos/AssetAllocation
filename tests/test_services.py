@@ -20,12 +20,18 @@ class TestDataService(unittest.TestCase):
     def setUp(self):
         # 임시 디렉토리에서 테스트
         self.temp_dir = tempfile.mkdtemp()
+        self.api_config_patcher = patch(
+            "services.data_service.API_CONFIG.FRED_API_KEY",
+            "1234567890abcdef1234567890abcdef",
+        )
+        self.api_config_patcher.start()
         self.data_service = DataService(cache_ttl_hours=0.01)  # 매우 짧은 TTL
 
     def tearDown(self):
         # 임시 파일 정리
         import shutil
 
+        self.api_config_patcher.stop()
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     @patch("services.data_service.Fred")
@@ -34,8 +40,10 @@ class TestDataService(unittest.TestCase):
         mock_fred = Mock()
         mock_fred_class.return_value = mock_fred
 
-        # 환경변수 모킹
-        with patch.dict(os.environ, {"FRED_API_KEY": "test_key"}):
+        with patch(
+            "services.data_service.API_CONFIG.FRED_API_KEY",
+            "abcdef1234567890abcdef1234567890",
+        ):
             service = DataService()
             self.assertIsNotNone(service.fred_account)
 
@@ -45,17 +53,17 @@ class TestDataService(unittest.TestCase):
         mock_fred = Mock()
         mock_fred_class.return_value = mock_fred
 
-        # portfolio.txt 파일 생성
-        with open("portfolio.txt", "w") as f:
-            f.write("test_key\n")
+        # 테스트 전용 fallback 파일을 사용해 작업 디렉토리 의존성 제거
+        fallback_path = os.path.join(self.temp_dir, "portfolio.txt")
+        with open(fallback_path, "w", encoding="utf-8") as file_descriptor:
+            file_descriptor.write("test_key\n")
 
-        try:
+        with patch(
+            "services.data_service.API_CONFIG.FALLBACK_FILE",
+            fallback_path,
+        ):
             service = DataService()
             self.assertIsNotNone(service.fred_account)
-        finally:
-            # 테스트 파일 정리
-            if os.path.exists("portfolio.txt"):
-                os.remove("portfolio.txt")
 
     @patch("services.data_service.yf.download")
     def test_get_financial_data_success(self, mock_download):
@@ -148,6 +156,20 @@ class TestCommunicationService(unittest.TestCase):
 
     def setUp(self):
         self.communication_service = None
+        self.bot_token_patcher = patch(
+            "services.communication_service.API_CONFIG.TELEGRAM_BOT_TOKEN",
+            "123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi",
+        )
+        self.chat_id_patcher = patch(
+            "services.communication_service.API_CONFIG.TELEGRAM_CHAT_ID",
+            "123456789",
+        )
+        self.bot_token_patcher.start()
+        self.chat_id_patcher.start()
+
+    def tearDown(self):
+        self.bot_token_patcher.stop()
+        self.chat_id_patcher.stop()
 
     @patch("services.communication_service.telegram.Bot")
     def test_initialize_telegram_success(self, mock_bot_class):
@@ -155,16 +177,8 @@ class TestCommunicationService(unittest.TestCase):
         mock_bot = Mock()
         mock_bot_class.return_value = mock_bot
 
-        # 환경변수 모킹
-        with patch.dict(
-            os.environ,
-            {
-                "TELEGRAM_BOT_TOKEN": "test_token",
-                "TELEGRAM_CHAT_ID": "test_chat_id",
-            },
-        ):
-            service = CommunicationService()
-            self.assertIsNotNone(service.telegram_account)
+        service = CommunicationService()
+        self.assertIsNotNone(service.telegram_account)
 
     @patch("services.communication_service.telegram.Bot")
     def test_send_message_success(self, mock_bot_class):
@@ -172,25 +186,17 @@ class TestCommunicationService(unittest.TestCase):
         mock_bot = Mock()
         mock_bot_class.return_value = mock_bot
 
-        # 환경변수 모킹
-        with patch.dict(
-            os.environ,
-            {
-                "TELEGRAM_BOT_TOKEN": "test_token",
-                "TELEGRAM_CHAT_ID": "test_chat_id",
-            },
-        ):
-            service = CommunicationService()
+        service = CommunicationService()
 
-            # self.session.post 모킹
-            with patch.object(service.session, "post") as mock_post:
-                mock_response = Mock()
-                mock_response.raise_for_status.return_value = None
-                mock_post.return_value = mock_response
+        # self.session.post 모킹
+        with patch.object(service.session, "post") as mock_post:
+            mock_response = Mock()
+            mock_response.raise_for_status.return_value = None
+            mock_post.return_value = mock_response
 
-                result = service.send_message("Test message")
-                self.assertTrue(result)
-                mock_post.assert_called_once()
+            result = service.send_message("Test message")
+            self.assertTrue(result)
+            mock_post.assert_called_once()
 
     @patch("services.communication_service.telegram.Bot")
     def test_send_message_failure(self, mock_bot_class):
@@ -198,23 +204,15 @@ class TestCommunicationService(unittest.TestCase):
         mock_bot = Mock()
         mock_bot_class.return_value = mock_bot
 
-        # 환경변수 모킹
-        with patch.dict(
-            os.environ,
-            {
-                "TELEGRAM_BOT_TOKEN": "test_token",
-                "TELEGRAM_CHAT_ID": "test_chat_id",
-            },
-        ):
-            service = CommunicationService()
+        service = CommunicationService()
 
-            # self.session.post 실패 모킹
-            with patch.object(service.session, "post") as mock_post:
-                mock_post.side_effect = Exception("Network error")
+        # self.session.post 실패 모킹
+        with patch.object(service.session, "post") as mock_post:
+            mock_post.side_effect = Exception("Network error")
 
-                result = service.send_message("Test message")
-                self.assertFalse(result)
-                mock_post.assert_called_once()
+            result = service.send_message("Test message")
+            self.assertFalse(result)
+            mock_post.assert_called_once()
 
     def test_get_telegram_bot_invalid_mode(self):
         """잘못된 모드로 봇 가져오기 테스트"""
