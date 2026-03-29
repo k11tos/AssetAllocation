@@ -62,8 +62,17 @@ def cli_module(monkeypatch):
     optimizer_module = types.ModuleType("utils.strategy_optimizer")
     optimizer_module.get_required_tickers_for_strategy = lambda _name: ["SPY"]
     optimizer_module.print_optimization_summary = lambda: None
+    cli_executor_module = types.ModuleType("cli_strategy_executor")
+    cli_executor_module.run_haa_strategy = lambda: {"HAA": 100.0}
+    cli_executor_module.run_kaw_strategy = lambda: {"KAW": 100.0}
+    cli_executor_module.run_baa_strategy = lambda: {"BAA": 100.0}
+    cli_executor_module.run_vaa_strategy = lambda: {"VAA": 100.0}
+    cli_executor_module.run_laa_strategy = lambda: {"LAA": 100.0}
+    cli_executor_module.run_bdaa_strategy = lambda: {"BDAA": 100.0}
+    cli_executor_module.run_mdm_strategy = lambda: {"MDM": 100.0}
 
     monkeypatch.delitem(sys.modules, "cli", raising=False)
+    monkeypatch.delitem(sys.modules, "cli_strategy_executor", raising=False)
     monkeypatch.setitem(sys.modules, "config", config_module)
     monkeypatch.setitem(sys.modules, "main", main_module)
     monkeypatch.setitem(sys.modules, "portfolio", portfolio_module)
@@ -71,10 +80,11 @@ def cli_module(monkeypatch):
     monkeypatch.setitem(sys.modules, "utils.cache_manager", cache_module)
     monkeypatch.setitem(sys.modules, "utils.performance_monitor", perf_module)
     monkeypatch.setitem(sys.modules, "utils.strategy_optimizer", optimizer_module)
+    monkeypatch.setitem(sys.modules, "cli_strategy_executor", cli_executor_module)
 
     imported_cli_module = importlib.import_module("cli")
     try:
-        yield imported_cli_module
+        yield imported_cli_module, cli_executor_module
     finally:
         sys.modules.pop("cli", None)
 
@@ -86,6 +96,7 @@ def _run_cli(monkeypatch, cli_module, args):
 
 
 def test_strategy_haa_runs_only_haa(monkeypatch, cli_module, capsys):
+    cli_module, cli_executor_module = cli_module
     haa_runner = Mock(return_value={"SPY": 100.0})
     kaw_runner = Mock(return_value={"KAW": 100.0})
     baa_runner = Mock(return_value={"BAA": 100.0})
@@ -94,13 +105,13 @@ def test_strategy_haa_runs_only_haa(monkeypatch, cli_module, capsys):
     bdaa_runner = Mock(return_value={"BDAA": 100.0})
     mdm_runner = Mock(return_value={"MDM": 100.0})
 
-    monkeypatch.setattr(cli_module, "run_haa_strategy", haa_runner)
-    monkeypatch.setattr(cli_module, "run_kaw_strategy", kaw_runner)
-    monkeypatch.setattr(cli_module, "run_baa_strategy", baa_runner)
-    monkeypatch.setattr(cli_module, "run_vaa_strategy", vaa_runner)
-    monkeypatch.setattr(cli_module, "run_laa_strategy", laa_runner)
-    monkeypatch.setattr(cli_module, "run_bdaa_strategy", bdaa_runner)
-    monkeypatch.setattr(cli_module, "run_mdm_strategy", mdm_runner)
+    monkeypatch.setattr(cli_executor_module, "run_haa_strategy", haa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", kaw_runner)
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", baa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", vaa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", laa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", bdaa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", mdm_runner)
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "haa"])
 
@@ -115,16 +126,17 @@ def test_strategy_haa_runs_only_haa(monkeypatch, cli_module, capsys):
 
 
 def test_strategy_kaw_runs_only_kaw(monkeypatch, cli_module, capsys):
+    cli_module, cli_executor_module = cli_module
     haa_runner = Mock(return_value={"SPY": 100.0})
     kaw_runner = Mock(return_value={"KAW": 100.0})
 
-    monkeypatch.setattr(cli_module, "run_haa_strategy", haa_runner)
-    monkeypatch.setattr(cli_module, "run_kaw_strategy", kaw_runner)
-    monkeypatch.setattr(cli_module, "run_baa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_vaa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_laa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_bdaa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_haa_strategy", haa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", kaw_runner)
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "kaw"])
 
@@ -136,6 +148,7 @@ def test_strategy_kaw_runs_only_kaw(monkeypatch, cli_module, capsys):
 def test_strategy_all_runs_all_supported_strategies(
     monkeypatch, cli_module, capsys
 ):
+    cli_module, cli_executor_module = cli_module
     strategy_mocks = {
         "run_haa_strategy": Mock(return_value={"HAA": 1.0}),
         "run_kaw_strategy": Mock(return_value={"KAW": 1.0}),
@@ -147,7 +160,7 @@ def test_strategy_all_runs_all_supported_strategies(
     }
 
     for attr_name, attr_mock in strategy_mocks.items():
-        monkeypatch.setattr(cli_module, attr_name, attr_mock)
+        monkeypatch.setattr(cli_executor_module, attr_name, attr_mock)
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "all"])
 
@@ -160,17 +173,18 @@ def test_strategy_all_runs_all_supported_strategies(
 
 
 def test_output_text_returns_formatted_text(monkeypatch, cli_module, capsys):
+    cli_module, cli_executor_module = cli_module
     monkeypatch.setattr(
-        cli_module,
+        cli_executor_module,
         "run_haa_strategy",
         Mock(return_value={"SPY": 60.0, "IEF": 40.0}),
     )
-    monkeypatch.setattr(cli_module, "run_kaw_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_baa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_vaa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_laa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_bdaa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "haa", "--output", "text"])
 
@@ -182,13 +196,14 @@ def test_output_text_returns_formatted_text(monkeypatch, cli_module, capsys):
 
 
 def test_output_json_returns_valid_json(monkeypatch, cli_module, capsys):
-    monkeypatch.setattr(cli_module, "run_haa_strategy", Mock(return_value={"SPY": 100.0}))
-    monkeypatch.setattr(cli_module, "run_kaw_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_baa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_vaa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_laa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_bdaa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_mdm_strategy", Mock())
+    cli_module, cli_executor_module = cli_module
+    monkeypatch.setattr(cli_executor_module, "run_haa_strategy", Mock(return_value={"SPY": 100.0}))
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "haa", "--output", "json"])
 
@@ -198,13 +213,14 @@ def test_output_json_returns_valid_json(monkeypatch, cli_module, capsys):
 
 
 def test_output_csv_returns_expected_headers(monkeypatch, cli_module, capsys):
-    monkeypatch.setattr(cli_module, "run_haa_strategy", Mock(return_value={"SPY": 100.0}))
-    monkeypatch.setattr(cli_module, "run_kaw_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_baa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_vaa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_laa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_bdaa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_mdm_strategy", Mock())
+    cli_module, cli_executor_module = cli_module
+    monkeypatch.setattr(cli_executor_module, "run_haa_strategy", Mock(return_value={"SPY": 100.0}))
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "haa", "--output", "csv"])
 
@@ -215,6 +231,7 @@ def test_output_csv_returns_expected_headers(monkeypatch, cli_module, capsys):
 
 
 def test_rebalance_uses_rebalancing_flow(monkeypatch, cli_module, capsys):
+    cli_module, cli_executor_module = cli_module
     rebalance_payload = {
         "allocation": {"SPY": 100.0},
         "current_prices": {"SPY": 100.0},
@@ -242,13 +259,13 @@ def test_rebalance_uses_rebalancing_flow(monkeypatch, cli_module, capsys):
 
     monkeypatch.setattr(cli_module, "load_rebalance_data", load_rebalance_data)
     monkeypatch.setattr(cli_module, "calculate_rebalancing", calculate_rebalancing)
-    monkeypatch.setattr(cli_module, "run_haa_strategy", haa_runner)
-    monkeypatch.setattr(cli_module, "run_kaw_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_baa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_vaa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_laa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_bdaa_strategy", Mock())
-    monkeypatch.setattr(cli_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_haa_strategy", haa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--rebalance", "dummy.json"])
 
