@@ -72,7 +72,11 @@ def cli_module(monkeypatch):
     monkeypatch.setitem(sys.modules, "utils.performance_monitor", perf_module)
     monkeypatch.setitem(sys.modules, "utils.strategy_optimizer", optimizer_module)
 
-    return importlib.import_module("cli")
+    imported_cli_module = importlib.import_module("cli")
+    try:
+        yield imported_cli_module
+    finally:
+        sys.modules.pop("cli", None)
 
 
 def _run_cli(monkeypatch, cli_module, args):
