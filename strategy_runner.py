@@ -22,13 +22,19 @@ _STRATEGY_REGISTRY: Dict[str, Dict[str, str]] = {
     },
 }
 
+_ENTRYPOINT_MODULES = {
+    "cli": "cli_strategy_executor",
+    "main": "main",
+}
+
 
 def get_available_strategy_runners(entrypoint: str) -> Dict[str, StrategyRunner]:
     """Return the strategy runner mapping for an entrypoint."""
     if entrypoint not in _STRATEGY_REGISTRY:
         raise KeyError(f"Unknown entrypoint: {entrypoint}")
 
-    module = importlib.import_module(entrypoint)
+    module_name = _ENTRYPOINT_MODULES.get(entrypoint, entrypoint)
+    module = importlib.import_module(module_name)
     mapping = _STRATEGY_REGISTRY[entrypoint]
     return {name: getattr(module, runner_name) for name, runner_name in mapping.items()}
 
