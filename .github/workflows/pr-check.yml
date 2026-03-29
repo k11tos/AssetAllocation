@@ -3,7 +3,7 @@ name: PR Check
 on:
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   pr-check:
@@ -28,7 +28,7 @@ jobs:
         run: uv sync --group dev
 
       - name: Syntax and import sanity check
-        run: uv run python -m compileall main.py cli.py portfolio.py config.py strategies services utils tests
+        run: uv run python -m compileall .
 
       - name: Run tests
         run: uv run python -m pytest
