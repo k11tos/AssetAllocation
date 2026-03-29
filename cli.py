@@ -24,6 +24,7 @@ from portfolio import (
 from services.data_service import DataService
 from utils.cache_manager import CacheManager
 from utils.performance_monitor import get_performance_monitor
+from strategy_runner import run_selected_strategies
 from utils.strategy_optimizer import (
     get_required_tickers_for_strategy,
     print_optimization_summary,
@@ -384,6 +385,21 @@ def run_mdm_strategy() -> Optional[Dict[str, float]]:
         return None
 
 
+
+
+def get_available_strategy_runners():
+    """실행 가능한 전략 러너 매핑을 반환합니다."""
+    return {
+        "HAA": run_haa_strategy,
+        "KAW": run_kaw_strategy,
+        "BAA": run_baa_strategy,
+        "VAA": run_vaa_strategy,
+        "LAA": run_laa_strategy,
+        "BDAA": run_bdaa_strategy,
+        "MDM": run_mdm_strategy,
+    }
+
+
 def main():
     """CLI 메인 함수"""
     parser = create_parser()
@@ -454,28 +470,13 @@ def main():
         return
 
     # 전략 실행
-    results = {}
+    strategy_runners = get_available_strategy_runners()
+    if args.strategy == "all":
+        requested_strategies = list(strategy_runners.keys())
+    else:
+        requested_strategies = [args.strategy.upper()]
 
-    if args.strategy in ["haa", "all"]:
-        results["HAA"] = run_haa_strategy()
-
-    if args.strategy in ["kaw", "all"]:
-        results["KAW"] = run_kaw_strategy()
-
-    if args.strategy in ["baa", "all"]:
-        results["BAA"] = run_baa_strategy()
-
-    if args.strategy in ["vaa", "all"]:
-        results["VAA"] = run_vaa_strategy()
-
-    if args.strategy in ["laa", "all"]:
-        results["LAA"] = run_laa_strategy()
-
-    if args.strategy in ["bdaa", "all"]:
-        results["BDAA"] = run_bdaa_strategy()
-
-    if args.strategy in ["mdm", "all"]:
-        results["MDM"] = run_mdm_strategy()
+    results = run_selected_strategies(requested_strategies, strategy_runners)
 
     # 최적화 요약 출력 (verbose 모드에서만)
     if args.verbose:

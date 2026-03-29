@@ -21,6 +21,7 @@ from portfolio import (
     get_korean_all_weather_allocation,
     print_info_message,
 )
+from strategy_runner import run_strategy
 from utils.logging_config import LoggingConfig
 from utils.performance_monitor import get_performance_monitor
 from utils.strategy_optimizer import get_required_tickers_for_strategy
@@ -113,6 +114,38 @@ def execute_haa_strategy() -> Optional[Dict[str, float]]:
         return None
 
 
+
+
+def execute_kaw_strategy() -> Optional[Dict[str, float]]:
+    """한국형 올웨더 전략을 실행합니다."""
+    try:
+        LoggingConfig.log_strategy_start(LOGGER, "Korean All-Weather")
+        korean_all_weather = get_korean_all_weather_allocation()
+        LoggingConfig.log_strategy_success(LOGGER, "Korean All-Weather")
+        LoggingConfig.log_allocation_result(
+            LOGGER, "Korean All-Weather", korean_all_weather
+        )
+        return korean_all_weather
+    except StrategyExecutionError as e:
+        LoggingConfig.log_strategy_failure(
+            LOGGER, "Korean All-Weather", f"Execution failed: {str(e)}"
+        )
+        return None
+    except Exception as e:
+        LoggingConfig.log_error_with_context(
+            LOGGER, e, "Korean All-Weather strategy"
+        )
+        return None
+
+
+def get_available_strategy_runners():
+    """실행 가능한 전략 러너 매핑을 반환합니다."""
+    return {
+        "HAA": execute_haa_strategy,
+        "KAW": execute_kaw_strategy,
+    }
+
+
 def main() -> None:
     """
     Main function
@@ -143,8 +176,10 @@ def main() -> None:
         print_info_message(f"{formatted_date} ({weekday})")
         LOGGER.info("📅 Processing date: %s", current_date)
 
+        strategy_runners = get_available_strategy_runners()
+
         # HAA 전략 실행
-        haa_result = execute_haa_strategy()
+        haa_result = run_strategy("HAA", strategy_runners)
         if haa_result:
             print_asset_allocation(
                 haa_result, etf_descriptions, total_number_of_strategy, "[HAA]"
@@ -154,25 +189,12 @@ def main() -> None:
             LOGGER.warning("⚠️ HAA strategy failed - skipping output")
 
         # 한국형 올웨더 전략 (항상 실행)
-        try:
-            LoggingConfig.log_strategy_start(LOGGER, "Korean All-Weather")
-            korean_all_weather = get_korean_all_weather_allocation()
+        kaw_result = run_strategy("KAW", strategy_runners)
+        if kaw_result:
             print_asset_allocation(
-                korean_all_weather, None, total_number_of_strategy, "[KAW]"
+                kaw_result, None, total_number_of_strategy, "[KAW]"
             )
             successful_strategies += 1
-            LoggingConfig.log_strategy_success(LOGGER, "Korean All-Weather")
-            LoggingConfig.log_allocation_result(
-                LOGGER, "Korean All-Weather", korean_all_weather
-            )
-        except StrategyExecutionError as e:
-            LoggingConfig.log_strategy_failure(
-                LOGGER, "Korean All-Weather", f"Execution failed: {str(e)}"
-            )
-        except Exception as e:
-            LoggingConfig.log_error_with_context(
-                LOGGER, e, "Korean All-Weather strategy"
-            )
 
         # 실행 결과 요약
         success_rate = (successful_strategies / total_number_of_strategy) * 100
