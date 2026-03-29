@@ -7,12 +7,28 @@ import unittest
 from datetime import datetime
 from unittest.mock import Mock, patch
 
+import numpy as np
+
 from strategies import (
     BAAStrategy,
     HAAStrategy,
+    LAAStrategy,
+    MDMStrategy,
     KoreanAllWeatherStrategy,
     VAAStrategy,
 )
+from strategies.bdaa_strategy import BDAAStrategy
+
+
+class FakeSeries:
+    """pandas.Series 대체용 최소 구현체 (오프라인 테스트 전용)"""
+
+    def __init__(self, values):
+        self.values = np.array(values, dtype=float)
+        self.iloc = self
+
+    def __getitem__(self, index):
+        return self.values[index]
 
 
 class TestHAAStrategy(unittest.TestCase):
@@ -412,6 +428,136 @@ class TestVAAStrategy(unittest.TestCase):
 
         with self.assertRaises(Exception):
             self.strategy.validate_data(invalid_data)
+
+
+class TestLAAStrategy(unittest.TestCase):
+    """LAA 전략 테스트"""
+
+    def setUp(self):
+        self.strategy = LAAStrategy()
+
+    def test_calculate_allocation_defensive_branch_selects_shy(self):
+        """약세+실업률 상승 조건에서 SHY 선택 테스트"""
+        data = {
+            "sp500": FakeSeries([100.0] * 200 + [90.0]),
+            "unrate": FakeSeries([5.0] * 12 + [6.0]),
+        }
+
+        result = self.strategy.calculate_allocation(data)
+
+        self.assertEqual(
+            result, {"VTV": 25, "GLD": 25, "IEF": 25, "SHY": 25.0}
+        )
+        self.assertAlmostEqual(sum(result.values()), 100.0, places=6)
+
+    def test_calculate_allocation_risk_on_branch_selects_qqq(self):
+        """조건 불충족 시 QQQ 선택 테스트"""
+        data = {
+            "sp500": FakeSeries([100.0] * 200 + [110.0]),
+            "unrate": FakeSeries([5.0] * 12 + [4.0]),
+        }
+
+        result = self.strategy.calculate_allocation(data)
+
+        self.assertEqual(
+            result, {"VTV": 25, "GLD": 25, "IEF": 25, "QQQ": 25.0}
+        )
+        self.assertAlmostEqual(sum(result.values()), 100.0, places=6)
+
+
+class TestBDAAStrategy(unittest.TestCase):
+    """BDAA 전략 테스트"""
+
+    def setUp(self):
+        self.strategy = BDAAStrategy()
+
+    def test_calculate_allocation_positive_top_bonds(self):
+        """상위 채권이 양수일 때 상위 3개 직접 배분 테스트"""
+        data = {
+            "profit_6month": {
+                "SHY": 0.09,
+                "IEF": 0.06,
+                "TLT": 0.04,
+                "TIP": 0.03,
+                "LQD": 0.02,
+                "HYG": 0.01,
+                "BWX": -0.02,
+                "EMB": -0.03,
+            }
+        }
+
+        result = self.strategy.calculate_allocation(data)
+
+        self.assertEqual(set(result.keys()), {"SHY", "IEF", "TLT"})
+        self.assertNotIn("CASH", result)
+        self.assertAlmostEqual(result["SHY"], 100.0 / 3.0, places=6)
+        self.assertAlmostEqual(result["IEF"], 100.0 / 3.0, places=6)
+        self.assertAlmostEqual(result["TLT"], 100.0 / 3.0, places=6)
+        self.assertAlmostEqual(sum(result.values()), 100.0, places=6)
+
+    def test_calculate_allocation_negative_top_bonds_to_cash(self):
+        """선택된 상위 채권이 음수면 CASH 치환 테스트"""
+        data = {
+            "profit_6month": {
+                "SHY": 0.05,
+                "IEF": -0.01,
+                "TLT": -0.02,
+                "TIP": -0.50,
+                "LQD": -0.60,
+                "HYG": -0.70,
+                "BWX": -0.80,
+                "EMB": -0.90,
+            }
+        }
+
+        result = self.strategy.calculate_allocation(data)
+
+        self.assertEqual(set(result.keys()), {"SHY", "CASH"})
+        self.assertAlmostEqual(result["SHY"], 100.0 / 3.0, places=6)
+        self.assertAlmostEqual(result["CASH"], 200.0 / 3.0, places=6)
+        self.assertAlmostEqual(sum(result.values()), 100.0, places=6)
+
+
+class TestMDMStrategy(unittest.TestCase):
+    """MDM 전략 테스트"""
+
+    def setUp(self):
+        self.strategy = MDMStrategy()
+
+    def test_calculate_allocation_risk_asset_selection(self):
+        """상대 모멘텀 양호 시 위험자산 선택 테스트"""
+        data = {
+            "profit_12month": {"SPY": 0.20, "IEFA": 0.10},
+            "profit_6month": {},
+        }
+
+        result = self.strategy.calculate_allocation(data)
+
+        self.assertEqual(result, {"SPY": 100})
+        self.assertAlmostEqual(sum(result.values()), 100.0, places=6)
+
+    def test_calculate_allocation_bond_fallback_with_cash(self):
+        """위험자산 조건 불리 시 채권/현금 대체 테스트"""
+        data = {
+            "profit_12month": {"SPY": -0.10, "IEFA": -0.20},
+            "profit_6month": {
+                "SHY": 0.05,
+                "IEF": -0.01,
+                "TLT": -0.02,
+                "TIP": -0.50,
+                "LQD": -0.60,
+                "HYG": -0.70,
+                "BWX": -0.80,
+                "EMB": -0.90,
+            },
+        }
+
+        result = self.strategy.calculate_allocation(data)
+
+        self.assertEqual(set(result.keys()), {"SHY", "CASH"})
+        self.assertAlmostEqual(result["SHY"], 100.0 / 3.0, places=6)
+        self.assertAlmostEqual(result["CASH"], 200.0 / 3.0, places=6)
+        self.assertAlmostEqual(sum(result.values()), 100.0, places=6)
 
 
 if __name__ == "__main__":
