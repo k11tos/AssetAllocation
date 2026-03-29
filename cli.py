@@ -387,19 +387,6 @@ def run_mdm_strategy() -> Optional[Dict[str, float]]:
 
 
 
-def get_available_strategy_runners():
-    """실행 가능한 전략 러너 매핑을 반환합니다."""
-    return {
-        "HAA": run_haa_strategy,
-        "KAW": run_kaw_strategy,
-        "BAA": run_baa_strategy,
-        "VAA": run_vaa_strategy,
-        "LAA": run_laa_strategy,
-        "BDAA": run_bdaa_strategy,
-        "MDM": run_mdm_strategy,
-    }
-
-
 def main():
     """CLI 메인 함수"""
     parser = create_parser()
@@ -470,13 +457,13 @@ def main():
         return
 
     # 전략 실행
-    strategy_runners = get_available_strategy_runners()
+    available_strategies = ["HAA", "KAW", "BAA", "VAA", "LAA", "BDAA", "MDM"]
     if args.strategy == "all":
-        requested_strategies = list(strategy_runners.keys())
+        requested_strategies = available_strategies
     else:
         requested_strategies = [args.strategy.upper()]
 
-    results = run_selected_strategies(requested_strategies, strategy_runners)
+    results = run_selected_strategies(requested_strategies, "cli")
 
     # 최적화 요약 출력 (verbose 모드에서만)
     if args.verbose:

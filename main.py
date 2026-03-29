@@ -138,14 +138,6 @@ def execute_kaw_strategy() -> Optional[Dict[str, float]]:
         return None
 
 
-def get_available_strategy_runners():
-    """실행 가능한 전략 러너 매핑을 반환합니다."""
-    return {
-        "HAA": execute_haa_strategy,
-        "KAW": execute_kaw_strategy,
-    }
-
-
 def main() -> None:
     """
     Main function
@@ -176,10 +168,8 @@ def main() -> None:
         print_info_message(f"{formatted_date} ({weekday})")
         LOGGER.info("📅 Processing date: %s", current_date)
 
-        strategy_runners = get_available_strategy_runners()
-
         # HAA 전략 실행
-        haa_result = run_strategy("HAA", strategy_runners)
+        haa_result = run_strategy("HAA", "main")
         if haa_result:
             print_asset_allocation(
                 haa_result, etf_descriptions, total_number_of_strategy, "[HAA]"
@@ -189,7 +179,7 @@ def main() -> None:
             LOGGER.warning("⚠️ HAA strategy failed - skipping output")
 
         # 한국형 올웨더 전략 (항상 실행)
-        kaw_result = run_strategy("KAW", strategy_runners)
+        kaw_result = run_strategy("KAW", "main")
         if kaw_result:
             print_asset_allocation(
                 kaw_result, None, total_number_of_strategy, "[KAW]"
