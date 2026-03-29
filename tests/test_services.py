@@ -54,16 +54,26 @@ class TestDataService(unittest.TestCase):
         mock_fred_class.return_value = mock_fred
 
         # 테스트 전용 fallback 파일을 사용해 작업 디렉토리 의존성 제거
-        fallback_path = os.path.join(self.temp_dir, "portfolio.txt")
-        with open(fallback_path, "w", encoding="utf-8") as file_descriptor:
-            file_descriptor.write("test_key\n")
+        fd, fallback_path = tempfile.mkstemp(
+            prefix="portfolio_test_",
+            suffix=".txt",
+            dir=os.getcwd(),
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as file_descriptor:
+            file_descriptor.write("abcdef1234567890abcdef1234567890\n")
 
-        with patch(
-            "services.data_service.API_CONFIG.FALLBACK_FILE",
-            fallback_path,
-        ):
-            service = DataService()
-            self.assertIsNotNone(service.fred_account)
+        try:
+            with patch(
+                "services.data_service.API_CONFIG.FRED_API_KEY",
+                "",
+            ), patch(
+                "services.data_service.API_CONFIG.FALLBACK_FILE",
+                fallback_path,
+            ):
+                service = DataService()
+                self.assertIsNotNone(service.fred_account)
+        finally:
+            os.remove(fallback_path)
 
     @patch("services.data_service.yf.download")
     def test_get_financial_data_success(self, mock_download):
