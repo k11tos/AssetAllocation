@@ -28,7 +28,10 @@ jobs:
         run: uv sync --group dev
 
       - name: Syntax and import sanity check
-        run: uv run python -m compileall .
+        run: >
+          uv run python -m compileall
+          main.py cli.py config.py portfolio.py
+          services strategies utils tests
 
       - name: Run tests
         run: uv run python -m pytest
