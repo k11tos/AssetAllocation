@@ -2,6 +2,7 @@
 """Regression tests for main.py scheduled execution flow."""
 
 import importlib
+from collections import OrderedDict
 import sys
 import types
 from unittest.mock import Mock
@@ -19,18 +20,6 @@ def main_module(monkeypatch):
     config_module.validate_config = lambda: True
 
     portfolio_module = types.ModuleType("portfolio")
-    portfolio_module.get_financial_data = lambda *_args, **_kwargs: (
-        {},
-        {},
-        {},
-        {},
-        {},
-        {},
-    )
-    portfolio_module.get_hybrid_asset_allocation = lambda *_args, **_kwargs: {}
-    portfolio_module.get_korean_all_weather_allocation = (
-        lambda *_args, **_kwargs: {}
-    )
     portfolio_module.print_info_message = lambda *_args, **_kwargs: None
 
     logging_config_module = types.ModuleType("utils.logging_config")
@@ -65,9 +54,6 @@ def main_module(monkeypatch):
     perf_module = types.ModuleType("utils.performance_monitor")
     perf_module.get_performance_monitor = lambda: Mock()
 
-    optimizer_module = types.ModuleType("utils.strategy_optimizer")
-    optimizer_module.get_required_tickers_for_strategy = lambda _name: ["SPY"]
-
     monkeypatch.delitem(sys.modules, "main", raising=False)
     monkeypatch.setitem(sys.modules, "config", config_module)
     monkeypatch.setitem(sys.modules, "portfolio", portfolio_module)
@@ -77,8 +63,6 @@ def main_module(monkeypatch):
         logging_config_module,
     )
     monkeypatch.setitem(sys.modules, "utils.performance_monitor", perf_module)
-    monkeypatch.setitem(sys.modules, "utils.strategy_optimizer", optimizer_module)
-
     return importlib.import_module("main")
 
 
@@ -103,30 +87,17 @@ def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_re
     )
 
     if isinstance(haa_result, Exception):
-        monkeypatch.setattr(
-            main_module,
-            "execute_haa_strategy",
-            Mock(side_effect=haa_result),
-        )
-    else:
-        monkeypatch.setattr(
-            main_module,
-            "execute_haa_strategy",
-            lambda: haa_result,
-        )
-
+        haa_result = None
     if isinstance(kaw_result, Exception):
-        monkeypatch.setattr(
-            main_module,
-            "get_korean_all_weather_allocation",
-            Mock(side_effect=kaw_result),
-        )
-    else:
-        monkeypatch.setattr(
-            main_module,
-            "get_korean_all_weather_allocation",
-            lambda: kaw_result,
-        )
+        kaw_result = None
+
+    monkeypatch.setattr(
+        main_module,
+        "run_selected_strategies",
+        lambda *_args, **_kwargs: OrderedDict(
+            [("HAA", haa_result), ("KAW", kaw_result)]
+        ),
+    )
 
     main_module.main()
     return info_message_mock, print_allocation_mock, performance_monitor
@@ -206,11 +177,10 @@ def test_main_exits_when_all_strategies_fail(monkeypatch, main_module):
     monkeypatch.setattr(main_module, "load_tickers", lambda: ["SPY"])
     monkeypatch.setattr(main_module, "print_info_message", info_message_mock)
     monkeypatch.setattr(main_module, "print_asset_allocation", Mock())
-    monkeypatch.setattr(main_module, "execute_haa_strategy", lambda: None)
     monkeypatch.setattr(
         main_module,
-        "get_korean_all_weather_allocation",
-        Mock(side_effect=StrategyExecutionError("kaw failed")),
+        "run_selected_strategies",
+        lambda *_args, **_kwargs: OrderedDict([("HAA", None), ("KAW", None)]),
     )
     monkeypatch.setattr(
         main_module,
