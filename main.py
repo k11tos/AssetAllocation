@@ -5,10 +5,16 @@ Get portfolio with original dual momentum, VAA and LAA
 
 import datetime
 import json
+import os
 import sys
 from typing import Dict, List, Optional
 
 from config import STRATEGY_CONFIG, validate_config
+from execution_output import (
+    format_execution_diff_summary,
+    load_execution_output_json,
+    save_execution_output_json,
+)
 from exceptions import (
     DataRetrievalError,
     DataValidationError,
@@ -28,6 +34,9 @@ from utils.strategy_optimizer import get_required_tickers_for_strategy
 
 # 로깅 설정
 LOGGER = LoggingConfig.get_logger(__name__)
+SCHEDULED_OUTPUT_DIR = "outputs"
+SCHEDULED_LATEST_RESULT_PATH = os.path.join(SCHEDULED_OUTPUT_DIR, "latest.json")
+SCHEDULED_HISTORY_DIR = os.path.join(SCHEDULED_OUTPUT_DIR, "history")
 
 
 def load_tickers(file_path: Optional[str] = None) -> List[str]:
@@ -216,9 +225,60 @@ def main() -> None:
             )
             sys.exit(1)
 
+        persist_scheduled_execution_result(strategy_results)
+
     except Exception as e:
         LoggingConfig.log_error_with_context(LOGGER, e, "main process")
         sys.exit(1)
+
+
+def persist_scheduled_execution_result(
+    strategy_results: Dict[str, Optional[Dict[str, float]]],
+) -> None:
+    """Save scheduled execution results and compare with previous snapshot."""
+    previous_result_data = None
+    try:
+        previous_result_data = load_execution_output_json(
+            SCHEDULED_LATEST_RESULT_PATH
+        )
+    except FileNotFoundError:
+        LOGGER.info(
+            "ℹ️ No previous scheduled execution snapshot at %s",
+            SCHEDULED_LATEST_RESULT_PATH,
+        )
+    except Exception as e:
+        LOGGER.warning(
+            "⚠️ Failed to load previous scheduled snapshot: %s",
+            e,
+        )
+
+    if previous_result_data is not None:
+        try:
+            diff_summary = format_execution_diff_summary(
+                previous_result_data, strategy_results
+            )
+            LOGGER.info("📊 Scheduled execution diff summary:\n%s", diff_summary)
+        except Exception as e:
+            LOGGER.warning(
+                "⚠️ Failed to format scheduled execution diff summary: %s",
+                e,
+            )
+
+    history_file_path = os.path.join(
+        SCHEDULED_HISTORY_DIR,
+        f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+    )
+
+    try:
+        save_execution_output_json(strategy_results, history_file_path)
+        save_execution_output_json(strategy_results, SCHEDULED_LATEST_RESULT_PATH)
+        LOGGER.info(
+            "💾 Scheduled execution results saved to %s and %s",
+            SCHEDULED_LATEST_RESULT_PATH,
+            history_file_path,
+        )
+    except Exception as e:
+        LOGGER.warning("⚠️ Failed to save scheduled execution results: %s", e)
 
 
 def print_asset_allocation(

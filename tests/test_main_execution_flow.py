@@ -2,7 +2,9 @@
 """Regression tests for main.py scheduled execution flow."""
 
 import importlib
+import json
 import sys
+import tempfile
 import types
 from unittest.mock import Mock
 
@@ -85,6 +87,19 @@ def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_re
     info_message_mock = Mock()
     print_allocation_mock = Mock()
     performance_monitor = Mock()
+    if main_module.SCHEDULED_LATEST_RESULT_PATH == "outputs/latest.json":
+        output_root = tempfile.mkdtemp(prefix="scheduled-main-test-")
+        monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", output_root)
+        monkeypatch.setattr(
+            main_module,
+            "SCHEDULED_HISTORY_DIR",
+            f"{output_root}/history",
+        )
+        monkeypatch.setattr(
+            main_module,
+            "SCHEDULED_LATEST_RESULT_PATH",
+            f"{output_root}/latest.json",
+        )
 
     monkeypatch.setattr(main_module, "validate_config", lambda: True)
     monkeypatch.setattr(main_module, "load_tickers", lambda: ["SPY", "QQQ"])
@@ -192,10 +207,15 @@ def test_main_continues_when_haa_succeeds_and_kaw_fails(monkeypatch, main_module
     performance_monitor.log_summary.assert_called_once()
 
 
-def test_main_exits_when_all_strategies_fail(monkeypatch, main_module):
+def test_main_exits_when_all_strategies_fail(
+    monkeypatch, main_module, tmp_path
+):
     """Both strategies fail -> process exits with code 1 and 0% summary."""
     info_message_mock = Mock()
     performance_monitor = Mock()
+    snapshot_root = tmp_path / "outputs"
+    latest_snapshot = snapshot_root / "latest.json"
+    history_snapshot_dir = snapshot_root / "history"
 
     monkeypatch.setattr(main_module, "validate_config", lambda: True)
     monkeypatch.setattr(main_module, "load_tickers", lambda: ["SPY"])
@@ -208,6 +228,11 @@ def test_main_exits_when_all_strategies_fail(monkeypatch, main_module):
         "get_performance_monitor",
         lambda: performance_monitor,
     )
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(snapshot_root))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_snapshot_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_snapshot)
+    )
 
     with pytest.raises(SystemExit) as exc:
         main_module.main()
@@ -215,3 +240,165 @@ def test_main_exits_when_all_strategies_fail(monkeypatch, main_module):
     assert exc.value.code == 1
     assert info_message_mock.call_args_list[-1].args[0] == "성공률: 0.0% (0/2)"
     performance_monitor.log_summary.assert_called_once()
+    assert not latest_snapshot.exists()
+    assert not list(history_snapshot_dir.glob("*.json"))
+
+
+def test_main_saves_latest_and_history_results(
+    monkeypatch, main_module, tmp_path
+):
+    """Successful scheduled run persists latest and timestamped history JSON."""
+    output_dir = tmp_path / "outputs"
+    history_dir = output_dir / "history"
+    latest_path = output_dir / "latest.json"
+
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
+    )
+
+    _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 50.0},
+        kaw_result={"TIGER S&P500": 50.0},
+    )
+
+    assert latest_path.exists()
+    latest_data = json.loads(latest_path.read_text(encoding="utf-8"))
+    assert latest_data["strategies"]["HAA"] == {"SPY": 50.0}
+    assert latest_data["strategies"]["KAW"] == {"TIGER S&P500": 50.0}
+
+    history_files = list(history_dir.glob("*.json"))
+    assert len(history_files) == 1
+    history_data = json.loads(history_files[0].read_text(encoding="utf-8"))
+    assert history_data["strategies"] == latest_data["strategies"]
+
+
+def test_main_logs_diff_when_previous_snapshot_exists(
+    monkeypatch, main_module, tmp_path
+):
+    """When latest snapshot exists, scheduled run logs a diff summary."""
+    output_dir = tmp_path / "outputs"
+    history_dir = output_dir / "history"
+    latest_path = output_dir / "latest.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    latest_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-01T00:00:00",
+                "strategies": {"HAA": {"SPY": 100.0}, "KAW": None},
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
+    )
+    monkeypatch.setattr(main_module.LOGGER, "info", Mock())
+
+    _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 50.0, "QQQ": 50.0},
+        kaw_result={"TIGER S&P500": 100.0},
+    )
+
+    logger_messages = [
+        call.args[0]
+        for call in main_module.LOGGER.info.call_args_list
+        if call.args
+    ]
+    assert any(
+        "Scheduled execution diff summary" in message
+        for message in logger_messages
+    )
+
+
+def test_main_continues_when_previous_snapshot_is_malformed_but_loadable(
+    monkeypatch, main_module, tmp_path
+):
+    """Malformed-but-loadable previous snapshot must not fail scheduled run."""
+    output_dir = tmp_path / "outputs"
+    history_dir = output_dir / "history"
+    latest_path = output_dir / "latest.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Loadable JSON with expected shape, but malformed asset value type for diff
+    latest_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-01T00:00:00",
+                "strategies": {"HAA": {"SPY": "not-a-number"}, "KAW": None},
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
+    )
+
+    _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 100.0},
+        kaw_result={"TIGER S&P500": 100.0},
+    )
+
+    saved_data = json.loads(latest_path.read_text(encoding="utf-8"))
+    assert saved_data["strategies"]["HAA"] == {"SPY": 100.0}
+    assert saved_data["strategies"]["KAW"] == {"TIGER S&P500": 100.0}
+
+
+def test_main_saves_snapshot_even_when_diff_formatting_fails(
+    monkeypatch, main_module, tmp_path
+):
+    """Diff formatting errors should be non-fatal and still save snapshots."""
+    output_dir = tmp_path / "outputs"
+    history_dir = output_dir / "history"
+    latest_path = output_dir / "latest.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    latest_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-01T00:00:00",
+                "strategies": {"HAA": {"SPY": 100.0}, "KAW": None},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
+    )
+    monkeypatch.setattr(
+        main_module,
+        "format_execution_diff_summary",
+        Mock(side_effect=RuntimeError("diff boom")),
+    )
+
+    _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 70.0, "QQQ": 30.0},
+        kaw_result={"TIGER S&P500": 100.0},
+    )
+
+    latest_data = json.loads(latest_path.read_text(encoding="utf-8"))
+    assert latest_data["strategies"]["HAA"] == {"SPY": 70.0, "QQQ": 30.0}
+    assert latest_data["strategies"]["KAW"] == {"TIGER S&P500": 100.0}
+    assert len(list(history_dir.glob("*.json"))) == 1

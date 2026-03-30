@@ -5,12 +5,17 @@ Command Line Interface for Asset Allocation
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime
 from typing import Any, Dict, List
 
 from config import STRATEGY_CONFIG
+from execution_output import (
+    build_execution_output_data as _build_execution_output_data,
+    format_execution_diff_summary as _format_execution_diff_summary,
+    load_execution_output_json as _load_execution_output_json,
+    save_execution_output_json as _save_execution_output_json,
+)
 from main import main as run_main
 from portfolio import (
     calculate_rebalancing,
@@ -145,142 +150,34 @@ def format_output_json(results: Dict[str, Any]) -> str:
 
 def build_execution_output_data(results: Dict[str, Any]) -> Dict[str, Any]:
     """전략 실행 결과의 표준 JSON 데이터를 생성합니다."""
-    output_data = {
-        "timestamp": datetime.now().isoformat(),
-        "strategies": results,
-    }
-    return output_data
+    return _build_execution_output_data(results)
 
 
 def save_execution_output_json(results: Dict[str, Any], file_path: str) -> None:
     """전략 실행 결과를 JSON 파일로 저장합니다."""
-    output_data = build_execution_output_data(results)
-    output_dir = os.path.dirname(file_path)
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(output_data, f, indent=2, ensure_ascii=False)
+    _save_execution_output_json(results, file_path)
 
 
 def load_execution_output_json(file_path: str) -> Dict[str, Any]:
     """저장된 전략 실행 결과 JSON 파일을 로드합니다."""
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        return _load_execution_output_json(file_path)
     except FileNotFoundError:
         print(f"Error: Compare file not found: {file_path}")
         sys.exit(1)
     except json.JSONDecodeError as e:
         print(f"Error: Invalid JSON in compare file: {e}")
         sys.exit(1)
-
-    if not isinstance(data, dict):
-        print("Error: Compare file must contain a JSON object")
+    except ValueError as e:
+        print(f"Error: {e}")
         sys.exit(1)
-
-    strategies = data.get("strategies")
-    if not isinstance(strategies, dict):
-        print(
-            "Error: Compare file must include 'strategies' as an object"
-        )
-        sys.exit(1)
-
-    return data
 
 
 def format_execution_diff_summary(
     previous_data: Dict[str, Any], current_results: Dict[str, Any]
 ) -> str:
     """이전 실행 결과와 현재 실행 결과의 변경점을 텍스트로 요약합니다."""
-    previous_strategies = previous_data.get("strategies", {})
-    current_strategies = current_results
-
-    previous_names = set(previous_strategies)
-    current_names = set(current_strategies)
-
-    added_strategies = sorted(current_names - previous_names)
-    removed_strategies = sorted(previous_names - current_names)
-    common_strategies = sorted(previous_names & current_names)
-
-    output: List[str] = []
-    output.append("Execution Result Diff")
-    output.append("=" * 60)
-    output.append(f"Added strategies: {len(added_strategies)}")
-    output.append(f"Removed strategies: {len(removed_strategies)}")
-
-    if added_strategies:
-        output.append(f"  + {', '.join(added_strategies)}")
-    if removed_strategies:
-        output.append(f"  - {', '.join(removed_strategies)}")
-
-    changed_strategies: List[str] = []
-    unchanged_strategies: List[str] = []
-    changed_entries = 0
-    unchanged_entries = 0
-
-    for strategy_name in common_strategies:
-        previous_allocation = previous_strategies.get(strategy_name)
-        current_allocation = current_strategies.get(strategy_name)
-
-        if previous_allocation == current_allocation:
-            unchanged_strategies.append(strategy_name)
-            if isinstance(current_allocation, dict):
-                unchanged_entries += len(current_allocation)
-            continue
-
-        changed_strategies.append(strategy_name)
-        output.append(f"\n{strategy_name}:")
-        output.append("-" * 40)
-
-        if not isinstance(previous_allocation, dict) or not isinstance(
-            current_allocation, dict
-        ):
-            output.append(
-                f"  Changed result: {previous_allocation} -> {current_allocation}"
-            )
-            changed_entries += 1
-            continue
-
-        previous_assets = set(previous_allocation)
-        current_assets = set(current_allocation)
-
-        added_assets = sorted(current_assets - previous_assets)
-        removed_assets = sorted(previous_assets - current_assets)
-        common_assets = sorted(previous_assets & current_assets)
-
-        for asset in added_assets:
-            output.append(
-                f"  + Added asset {asset}: {current_allocation[asset]:.2f}%"
-            )
-            changed_entries += 1
-        for asset in removed_assets:
-            output.append(
-                f"  - Removed asset {asset}: {previous_allocation[asset]:.2f}%"
-            )
-            changed_entries += 1
-
-        for asset in common_assets:
-            previous_value = previous_allocation[asset]
-            current_value = current_allocation[asset]
-            if previous_value == current_value:
-                unchanged_entries += 1
-                continue
-
-            delta = current_value - previous_value
-            output.append(
-                f"  * {asset}: {previous_value:.2f}% -> "
-                f"{current_value:.2f}% ({delta:+.2f}%)"
-            )
-            changed_entries += 1
-
-    output.append("")
-    output.append(f"Changed strategies: {len(changed_strategies)}")
-    output.append(f"Unchanged strategies: {len(unchanged_strategies)}")
-    output.append(f"Changed allocation entries: {changed_entries}")
-    output.append(f"Unchanged allocation entries: {unchanged_entries}")
-
-    return "\n".join(output)
+    return _format_execution_diff_summary(previous_data, current_results)
 
 
 def format_output_csv(results: Dict[str, Any]) -> str:
