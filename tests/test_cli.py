@@ -429,6 +429,104 @@ def test_format_execution_diff_summary_includes_unchanged_counts(cli_module):
     assert "Unchanged allocation entries: 2" in diff
 
 
+def test_format_compact_execution_diff_summary_is_concise(cli_module):
+    cli_module, _cli_executor_module = cli_module
+    previous = {
+        "timestamp": "2025-01-01T00:00:00",
+        "strategies": {
+            "HAA": {"SPY": 60.0, "IEF": 40.0},
+            "KAW": {"TIGER S&P500": 100.0},
+        },
+    }
+    current = {
+        "HAA": {"SPY": 50.0, "IEF": 50.0},
+        "KAW": {"TIGER S&P500": 100.0},
+    }
+
+    summary = cli_module.format_compact_execution_diff_summary(previous, current)
+
+    assert summary is not None
+    assert summary.startswith("Scheduled diff:")
+    assert "1 strategies changed" in summary
+    assert "2 allocation entries changed" in summary
+
+
+def test_format_compact_execution_diff_summary_returns_none_for_no_changes(cli_module):
+    cli_module, _cli_executor_module = cli_module
+    previous = {
+        "timestamp": "2025-01-01T00:00:00",
+        "strategies": {"HAA": {"SPY": 50.0}},
+    }
+    current = {"HAA": {"SPY": 50.0}}
+
+    summary = cli_module.format_compact_execution_diff_summary(previous, current)
+
+    assert summary is None
+
+
+def test_format_compact_execution_diff_summary_counts_added_strategy_entries(
+    cli_module,
+):
+    cli_module, _cli_executor_module = cli_module
+    previous = {
+        "timestamp": "2025-01-01T00:00:00",
+        "strategies": {"HAA": {"SPY": 50.0}},
+    }
+    current = {
+        "HAA": {"SPY": 50.0},
+        "LAA": {"IWD": 70.0, "GLD": 30.0},
+    }
+
+    summary = cli_module.format_compact_execution_diff_summary(previous, current)
+
+    assert summary is not None
+    assert "1 strategies changed" in summary
+    assert "2 allocation entries changed" in summary
+
+
+def test_format_compact_execution_diff_summary_counts_removed_strategy_entries(
+    cli_module,
+):
+    cli_module, _cli_executor_module = cli_module
+    previous = {
+        "timestamp": "2025-01-01T00:00:00",
+        "strategies": {
+            "HAA": {"SPY": 50.0},
+            "KAW": {"TIGER S&P500": 100.0, "KOSEF 200TR": 0.0},
+        },
+    }
+    current = {"HAA": {"SPY": 50.0}}
+
+    summary = cli_module.format_compact_execution_diff_summary(previous, current)
+
+    assert summary is not None
+    assert "1 strategies changed" in summary
+    assert "2 allocation entries changed" in summary
+
+
+def test_format_compact_execution_diff_summary_mixed_strategy_and_asset_changes(
+    cli_module,
+):
+    cli_module, _cli_executor_module = cli_module
+    previous = {
+        "timestamp": "2025-01-01T00:00:00",
+        "strategies": {
+            "HAA": {"SPY": 60.0, "IEF": 40.0},
+            "KAW": {"TIGER S&P500": 100.0},
+        },
+    }
+    current = {
+        "HAA": {"SPY": 50.0, "IEF": 50.0},
+        "LAA": {"IWD": 100.0},
+    }
+
+    summary = cli_module.format_compact_execution_diff_summary(previous, current)
+
+    assert summary is not None
+    assert "3 strategies changed" in summary
+    assert "4 allocation entries changed" in summary
+
+
 def test_compare_json_with_json_output_keeps_stdout_valid_json(
     monkeypatch, cli_module, capsys, tmp_path
 ):

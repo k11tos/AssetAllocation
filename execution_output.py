@@ -4,7 +4,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 def build_execution_output_data(results: Dict[str, Any]) -> Dict[str, Any]:
@@ -133,3 +133,116 @@ def format_execution_diff_summary(
     output.append(f"Unchanged allocation entries: {unchanged_entries}")
 
     return "\n".join(output)
+
+
+def format_compact_execution_diff_summary(
+    previous_data: Dict[str, Any],
+    current_results: Dict[str, Any],
+    max_strategy_highlights: int = 3,
+    max_asset_highlights_per_strategy: int = 2,
+) -> Optional[str]:
+    """Return a compact human-readable diff summary for report/message flows."""
+    previous_strategies = previous_data.get("strategies", {})
+    if not isinstance(previous_strategies, dict):
+        raise ValueError("Previous execution payload must include strategies object")
+
+    previous_names = set(previous_strategies)
+    current_names = set(current_results)
+    common_names = sorted(previous_names & current_names)
+
+    changed_strategies = []
+    changed_entries = 0
+    strategy_highlights: List[str] = []
+
+    def _count_changed_entries_for_strategy_payload(payload: Any) -> int:
+        if isinstance(payload, dict):
+            return len(payload)
+        return 1
+
+    for strategy_name in common_names:
+        previous_allocation = previous_strategies.get(strategy_name)
+        current_allocation = current_results.get(strategy_name)
+        if previous_allocation == current_allocation:
+            continue
+
+        changed_strategies.append(strategy_name)
+
+        if not isinstance(previous_allocation, dict) or not isinstance(
+            current_allocation, dict
+        ):
+            changed_entries += 1
+            strategy_highlights.append(f"{strategy_name}: result changed")
+            continue
+
+        previous_assets = set(previous_allocation)
+        current_assets = set(current_allocation)
+        asset_changes: List[str] = []
+
+        added_assets = sorted(current_assets - previous_assets)
+        removed_assets = sorted(previous_assets - current_assets)
+        common_assets = sorted(previous_assets & current_assets)
+
+        for asset in added_assets:
+            changed_entries += 1
+            if len(asset_changes) < max_asset_highlights_per_strategy:
+                asset_changes.append(f"+{asset}")
+
+        for asset in removed_assets:
+            changed_entries += 1
+            if len(asset_changes) < max_asset_highlights_per_strategy:
+                asset_changes.append(f"-{asset}")
+
+        for asset in common_assets:
+            previous_value = previous_allocation[asset]
+            current_value = current_allocation[asset]
+            if previous_value == current_value:
+                continue
+
+            changed_entries += 1
+            if len(asset_changes) < max_asset_highlights_per_strategy:
+                delta = current_value - previous_value
+                asset_changes.append(f"{asset} {delta:+.2f}%")
+
+        if asset_changes:
+            strategy_highlights.append(
+                f"{strategy_name}: {', '.join(asset_changes)}"
+            )
+        else:
+            strategy_highlights.append(f"{strategy_name}: allocation changed")
+
+    # Added/removed strategies are meaningful strategy-level changes.
+    added_strategies = sorted(current_names - previous_names)
+    removed_strategies = sorted(previous_names - current_names)
+    added_or_removed = set(added_strategies) | set(removed_strategies)
+    changed_strategy_count = len(changed_strategies) + len(added_or_removed)
+
+    for strategy_name in added_strategies:
+        changed_entries += _count_changed_entries_for_strategy_payload(
+            current_results.get(strategy_name)
+        )
+
+    for strategy_name in removed_strategies:
+        changed_entries += _count_changed_entries_for_strategy_payload(
+            previous_strategies.get(strategy_name)
+        )
+
+    if changed_strategy_count == 0:
+        return None
+
+    compact_lines = [
+        (
+            "Scheduled diff: "
+            f"{changed_strategy_count} strategies changed, "
+            f"{changed_entries} allocation entries changed"
+        )
+    ]
+
+    for strategy_name in added_strategies[:max_strategy_highlights]:
+        compact_lines.append(f"- {strategy_name}: added strategy")
+    for strategy_name in removed_strategies[:max_strategy_highlights]:
+        compact_lines.append(f"- {strategy_name}: removed strategy")
+
+    for highlight in strategy_highlights[:max_strategy_highlights]:
+        compact_lines.append(f"- {highlight}")
+
+    return "\n".join(compact_lines)

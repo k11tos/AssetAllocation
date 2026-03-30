@@ -11,6 +11,7 @@ from typing import Dict, List, Optional
 
 from config import STRATEGY_CONFIG, validate_config
 from execution_output import (
+    format_compact_execution_diff_summary,
     format_execution_diff_summary,
     load_execution_output_json,
     save_execution_output_json,
@@ -258,6 +259,12 @@ def persist_scheduled_execution_result(
                 previous_result_data, strategy_results
             )
             LOGGER.info("📊 Scheduled execution diff summary:\n%s", diff_summary)
+
+            compact_summary = format_compact_execution_diff_summary(
+                previous_result_data, strategy_results
+            )
+            if compact_summary:
+                print_info_message(compact_summary)
         except Exception as e:
             LOGGER.warning(
                 "⚠️ Failed to format scheduled execution diff summary: %s",
