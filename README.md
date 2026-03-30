@@ -127,6 +127,9 @@ uv run asset-cli --output json
 uv run asset-cli --output csv
 uv run asset-cli --output text
 
+# Save execution results to JSON file
+uv run asset-cli --strategy haa --save-json outputs/latest.json
+
 # Verbose logging
 uv run asset-cli --verbose
 

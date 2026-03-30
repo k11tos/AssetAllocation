@@ -289,6 +289,61 @@ def test_output_csv_returns_expected_headers(monkeypatch, cli_module, capsys):
     assert "HAA,SPY,100.00" in lines
 
 
+def test_save_json_writes_execution_results(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, cli_executor_module = cli_module
+    export_path = tmp_path / "outputs" / "latest.json"
+
+    monkeypatch.setattr(
+        cli_executor_module, "run_haa_strategy", Mock(return_value={"SPY": 100.0})
+    )
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+
+    _run_cli(
+        monkeypatch,
+        cli_module,
+        ["--strategy", "haa", "--save-json", str(export_path)],
+    )
+
+    output = capsys.readouterr().out
+    assert "Asset Allocation Report" in output
+    assert export_path.exists()
+
+    with export_path.open("r", encoding="utf-8") as exported_file:
+        exported_payload = json.load(exported_file)
+
+    assert "timestamp" in exported_payload
+    assert exported_payload["strategies"] == {"HAA": {"SPY": 100.0}}
+
+
+def test_save_json_not_used_by_default(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, cli_executor_module = cli_module
+    default_output_path = tmp_path / "outputs" / "latest.json"
+
+    monkeypatch.setattr(
+        cli_executor_module, "run_haa_strategy", Mock(return_value={"SPY": 100.0})
+    )
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+
+    _run_cli(monkeypatch, cli_module, ["--strategy", "haa"])
+
+    assert "Asset Allocation Report" in capsys.readouterr().out
+    assert not default_output_path.exists()
+
+
 def test_rebalance_uses_rebalancing_flow(monkeypatch, cli_module, capsys):
     cli_module, cli_executor_module = cli_module
     rebalance_payload = {
