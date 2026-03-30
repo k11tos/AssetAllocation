@@ -57,3 +57,16 @@ def test_run_selected_strategies_continues_when_one_strategy_fails(
 def test_get_available_strategy_runners_raises_for_unknown_entrypoint():
     with pytest.raises(KeyError):
         get_available_strategy_runners("unknown")
+
+
+def test_get_available_strategy_runners_resolves_main_registry(monkeypatch):
+    main_module = types.ModuleType("main")
+    main_module.execute_haa_strategy = lambda: {"HAA": 100.0}
+    main_module.execute_kaw_strategy = lambda: {"KAW": 100.0}
+    monkeypatch.setitem(sys.modules, "main", main_module)
+
+    runners = get_available_strategy_runners("main")
+
+    assert set(runners) == {"HAA", "KAW"}
+    assert runners["HAA"]() == {"HAA": 100.0}
+    assert runners["KAW"]() == {"KAW": 100.0}
