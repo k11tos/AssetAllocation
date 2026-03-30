@@ -2,6 +2,7 @@
 """Regression tests for main.py scheduled execution flow."""
 
 import importlib
+import json
 import sys
 import types
 from unittest.mock import Mock
@@ -215,3 +216,81 @@ def test_main_exits_when_all_strategies_fail(monkeypatch, main_module):
     assert exc.value.code == 1
     assert info_message_mock.call_args_list[-1].args[0] == "성공률: 0.0% (0/2)"
     performance_monitor.log_summary.assert_called_once()
+
+
+def test_main_saves_latest_and_history_results(
+    monkeypatch, main_module, tmp_path
+):
+    """Successful scheduled run persists latest and timestamped history JSON."""
+    output_dir = tmp_path / "outputs"
+    history_dir = output_dir / "history"
+    latest_path = output_dir / "latest.json"
+
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
+    )
+
+    _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 50.0},
+        kaw_result={"TIGER S&P500": 50.0},
+    )
+
+    assert latest_path.exists()
+    latest_data = json.loads(latest_path.read_text(encoding="utf-8"))
+    assert latest_data["strategies"]["HAA"] == {"SPY": 50.0}
+    assert latest_data["strategies"]["KAW"] == {"TIGER S&P500": 50.0}
+
+    history_files = list(history_dir.glob("*.json"))
+    assert len(history_files) == 1
+    history_data = json.loads(history_files[0].read_text(encoding="utf-8"))
+    assert history_data["strategies"] == latest_data["strategies"]
+
+
+def test_main_logs_diff_when_previous_snapshot_exists(
+    monkeypatch, main_module, tmp_path
+):
+    """When latest snapshot exists, scheduled run logs a diff summary."""
+    output_dir = tmp_path / "outputs"
+    history_dir = output_dir / "history"
+    latest_path = output_dir / "latest.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    latest_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-01T00:00:00",
+                "strategies": {"HAA": {"SPY": 100.0}, "KAW": None},
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
+    )
+    monkeypatch.setattr(main_module.LOGGER, "info", Mock())
+
+    _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 50.0, "QQQ": 50.0},
+        kaw_result={"TIGER S&P500": 100.0},
+    )
+
+    logger_messages = [
+        call.args[0]
+        for call in main_module.LOGGER.info.call_args_list
+        if call.args
+    ]
+    assert any(
+        "Scheduled execution diff summary" in message
+        for message in logger_messages
+    )
