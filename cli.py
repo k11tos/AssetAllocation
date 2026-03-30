@@ -111,6 +111,12 @@ Examples:
         ),
     )
 
+    parser.add_argument(
+        "--show-history",
+        type=str,
+        help="저장된 실행 스냅샷 JSON 파일 상세 조회 (예: outputs/history/20260101_000000.json)",
+    )
+
     # 리밸런싱
     parser.add_argument(
         "--rebalance",
@@ -367,6 +373,39 @@ def format_history_summary(history_dir: str, limit: int) -> str:
     return "\n".join(output)
 
 
+def format_history_snapshot_detail(
+    snapshot_data: Dict[str, Any], snapshot_path: Optional[str] = None
+) -> str:
+    """저장된 실행 스냅샷 한 건의 상세 정보를 사람이 읽기 쉬운 형식으로 포맷합니다."""
+    timestamp = snapshot_data.get("timestamp", "unknown")
+    strategies = snapshot_data.get("strategies", {})
+    strategy_names = sorted(strategies.keys()) if isinstance(strategies, dict) else []
+
+    output = ["Execution Snapshot Detail", "=" * 60]
+    if snapshot_path:
+        output.append(f"File: {snapshot_path}")
+    output.append(f"Timestamp: {timestamp}")
+    output.append(f"Strategies ({len(strategy_names)}): {', '.join(strategy_names) if strategy_names else 'none'}")
+
+    if not strategy_names:
+        return "\n".join(output)
+
+    output.append("")
+    for strategy_name in strategy_names:
+        allocation = strategies.get(strategy_name)
+        output.append(f"{strategy_name}:")
+        if isinstance(allocation, dict):
+            if allocation:
+                for asset, percentage in sorted(allocation.items()):
+                    output.append(f"  - {asset}: {percentage:.2f}%")
+            else:
+                output.append("  - no allocations")
+        else:
+            output.append(f"  - result: {allocation}")
+
+    return "\n".join(output)
+
+
 def main():
     """CLI 메인 함수"""
     parser = create_parser()
@@ -377,6 +416,25 @@ def main():
         import logging
 
         logging.getLogger().setLevel(logging.DEBUG)
+
+    if args.show_history:
+        try:
+            snapshot_data = _load_execution_output_json(args.show_history)
+        except FileNotFoundError:
+            print(f"Error: Snapshot file not found: {args.show_history}")
+            sys.exit(1)
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in snapshot file: {e}")
+            sys.exit(1)
+        except ValueError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+
+        if args.output == "json":
+            print(json.dumps(snapshot_data, indent=2, ensure_ascii=False))
+        else:
+            print(format_history_snapshot_detail(snapshot_data, args.show_history))
+        return
 
     if args.history is not None:
         if args.history <= 0:
