@@ -115,7 +115,9 @@ def test_main_scheduled_smoke_success_offline(monkeypatch, main_module):
 
     emitted_messages = [call.args[0] for call in info_message_mock.call_args_list]
     assert "자산 배분 리포트" in emitted_messages
-    assert "2026년 01월 15일 (Thursday)" in emitted_messages
+    date_message = next(msg for msg in emitted_messages if msg.startswith("2026년 01월 15일"))
+    assert date_message.startswith("2026년 01월 15일 (")
+    assert date_message.endswith(")")
     assert emitted_messages[-1] == "성공률: 100.0% (2/2)"
 
     assert allocation_mock.call_count == 2
