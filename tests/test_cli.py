@@ -95,6 +95,65 @@ def _run_cli(monkeypatch, cli_module, args):
     cli_module.main()
 
 
+def test_cli_smoke_all_strategies_json_end_to_end(
+    monkeypatch, cli_module, capsys
+):
+    """Smoke test: run the manual CLI path end-to-end with all strategies in JSON."""
+    cli_module, cli_executor_module = cli_module
+    expected_allocations = {
+        "HAA": {"SPY": 30.0, "IEF": 70.0},
+        "KAW": {"KODEX200": 100.0},
+        "BAA": {"QQQ": 100.0},
+        "VAA": {"BIL": 100.0},
+        "LAA": {"IWD": 25.0, "GLD": 25.0, "IEF": 25.0, "QQQ": 25.0},
+        "BDAA": {"SPY": 50.0, "TLT": 50.0},
+        "MDM": {"SHY": 100.0},
+    }
+
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_haa_strategy",
+        Mock(return_value=expected_allocations["HAA"]),
+    )
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_kaw_strategy",
+        Mock(return_value=expected_allocations["KAW"]),
+    )
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_baa_strategy",
+        Mock(return_value=expected_allocations["BAA"]),
+    )
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_vaa_strategy",
+        Mock(return_value=expected_allocations["VAA"]),
+    )
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_laa_strategy",
+        Mock(return_value=expected_allocations["LAA"]),
+    )
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_bdaa_strategy",
+        Mock(return_value=expected_allocations["BDAA"]),
+    )
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_mdm_strategy",
+        Mock(return_value=expected_allocations["MDM"]),
+    )
+
+    _run_cli(monkeypatch, cli_module, ["--strategy", "all", "--output", "json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert "timestamp" in payload
+    assert set(payload["strategies"]) == set(expected_allocations)
+    assert payload["strategies"] == expected_allocations
+
+
 def test_strategy_haa_runs_only_haa(monkeypatch, cli_module, capsys):
     cli_module, cli_executor_module = cli_module
     haa_runner = Mock(return_value={"SPY": 100.0})
