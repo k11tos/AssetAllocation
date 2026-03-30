@@ -15,7 +15,8 @@ A Python application for implementing various asset allocation strategies includ
 - **Intelligent Caching**: Reduces API calls and improves performance
 - **Performance Monitoring**: Built-in performance tracking and optimization
 - **Comprehensive Error Handling**: Robust error recovery and logging
-- **Unit Testing**: 29+ test cases ensuring code reliability
+- **Regression Test Coverage**: Broad pytest suite covering execution flow, CLI, strategies, and services
+- **PR Check Workflow**: Pull requests run compile/import sanity checks plus the test suite in CI
 
 ### 🛠️ Developer Experience
 - **Modular Architecture**: Clean separation of concerns with strategy classes
@@ -76,9 +77,9 @@ git clone <repository-url>
 cd AssetAllocation
 ```
 
-2. Install dependencies:
+2. Install dependencies (primary local workflow via `uv` + `pyproject.toml`):
 ```bash
-uv sync
+uv sync --group dev
 ```
 
 3. Set up environment variables:
@@ -102,7 +103,14 @@ TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 
 ## Usage
 
-### 🖥️ Command Line Interface (CLI)
+### Execution Paths
+
+- **Scheduled/regular execution (`main.py`)**: production-style run path (currently runs HAA + KAW).
+- **Manual analysis (`cli.py` / `asset-cli`)**: user-invoked CLI for ad-hoc strategy runs, output formatting, cache tools, and rebalancing helpers.
+- **Shared orchestration (`strategy_runner.py`)**: common strategy dispatch layer used by both entrypoints.
+- **CLI strategy execution (`cli_strategy_executor.py`)**: CLI-only strategy runner implementations (BAA/VAA/LAA/BDAA/MDM/HAA/KAW).
+
+### 🖥️ Command Line Interface (manual path)
 
 The application provides a powerful CLI with multiple options:
 
@@ -160,10 +168,10 @@ docker-compose logs -f
 ### 💻 Local Usage
 
 ```bash
-# Run the main application
+# Scheduled / regular execution path
 uv run python main.py
 
-# Or using the CLI
+# Manual analysis CLI path
 uv run asset-cli
 
 # Run specific strategy
@@ -174,17 +182,19 @@ uv run asset-cli --strategy kaw --output json
 
 ```bash
 # Run all tests
-uv run python -m pytest tests/ -v
+uv run python -m pytest
 
 # Run specific test file
 uv run python -m pytest tests/test_strategies.py -v
 
 # Run with coverage
-uv run python -m pytest tests/ --cov=. --cov-report=html
+uv run python -m pytest --cov=. --cov-report=html
 
 # Run tests with verbose output
-uv run python -m pytest tests/ -v --tb=short
+uv run python -m pytest -v --tb=short
 ```
+
+Pull requests to `master` are validated by `.github/workflows/pr-check.yml`, which installs with `uv`, runs a compile/import sanity check, and executes `pytest`.
 
 ## Asset Allocation Strategies
 
@@ -208,49 +218,45 @@ uv run python -m pytest tests/ -v --tb=short
 
 ```
 AssetAllocation/
-├── cli.py                 # Command-line interface
-├── main.py               # Main application entry point
-├── portfolio.py          # Portfolio management functions
-├── config.py             # Configuration management
-├── strategies/           # Strategy implementations
+├── main.py                  # Scheduled/regular execution entrypoint
+├── cli.py                   # Manual analysis CLI entrypoint (asset-cli)
+├── strategy_runner.py       # Shared strategy orchestration layer
+├── cli_strategy_executor.py # CLI-specific strategy execution helpers
+├── portfolio.py             # Portfolio calculations and allocation helpers
+├── config.py                # Configuration and validation
+├── strategies/              # Strategy implementations
 │   ├── __init__.py
 │   ├── base_strategy.py
 │   ├── haa_strategy.py
 │   ├── korean_all_weather_strategy.py
 │   └── ...
-├── services/             # Service layer
+├── services/                # Service layer (market/fred/communications)
 │   ├── __init__.py
 │   ├── data_service.py
 │   └── communication_service.py
-├── utils/                # Utility modules
+├── utils/                   # Utility modules (cache, logging, perf, security)
 │   ├── __init__.py
 │   ├── cache_manager.py
 │   └── performance_monitor.py
-├── tests/                # Unit tests
-│   ├── test_strategies.py
-│   ├── test_services.py
-│   └── test_utils.py
-├── cache/                # Cache directory
-├── logs/                 # Log files
-└── requirements.txt      # Dependencies
+├── tests/                   # Regression test suite
+│   ├── test_main_execution_flow.py
+│   ├── test_cli.py
+│   ├── test_strategy_runner.py
+│   └── ...
+├── .github/workflows/
+│   └── pr-check.yml         # CI checks for pull requests
+├── pyproject.toml           # Project metadata + dependencies + scripts
+└── uv.lock                  # Locked dependency set for uv
 ```
 
 ## 📦 Dependencies
 
-### Core Dependencies
-- `yfinance`: Financial data from Yahoo Finance
-- `python-telegram-bot`: Telegram bot integration
-- `fredapi`: Federal Reserve Economic Data API
-- `python-dotenv`: Environment variable management
-- `talib`: Technical analysis library
+Dependencies are managed in `pyproject.toml` and locked in `uv.lock`.
 
-### Development Dependencies
-- `pytest`: Testing framework
-- `pytest-cov`: Coverage reporting
-- `pytest-mock`: Mocking utilities
-- `sphinx`: Documentation generation
-- `sphinx-rtd-theme`: Read the Docs theme
-- `sphinx-autodoc-typehints`: Type hints support
+- Install runtime + dev tooling with `uv sync --group dev`
+- CLI entrypoints are defined as:
+  - `asset-allocation` → `main:main`
+  - `asset-cli` → `cli:main`
 
 ## 🔧 Configuration
 
