@@ -103,6 +103,9 @@ TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 
 ## Usage
 
+For practical day-to-day run flow (scheduled vs CLI, storage, diff, and history inspection), see [OPERATIONS.md](OPERATIONS.md).
+
+
 ### Execution Paths
 
 - **Scheduled/regular execution (`main.py`)**: production-style run path (currently runs HAA + KAW).
