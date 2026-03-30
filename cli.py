@@ -5,6 +5,7 @@ Command Line Interface for Asset Allocation
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from typing import Any, Dict, List
@@ -75,6 +76,12 @@ Examples:
         "--performance", action="store_true", help="성능 모니터링 결과 출력"
     )
 
+    parser.add_argument(
+        "--save-json",
+        type=str,
+        help="전략 실행 결과를 JSON 파일로 저장할 경로 (예: outputs/latest.json)",
+    )
+
     # 리밸런싱
     parser.add_argument(
         "--rebalance",
@@ -123,11 +130,28 @@ def format_output_text(results: Dict[str, Any]) -> str:
 
 def format_output_json(results: Dict[str, Any]) -> str:
     """JSON 형식으로 출력을 포맷합니다."""
+    output_data = build_execution_output_data(results)
+    return json.dumps(output_data, indent=2, ensure_ascii=False)
+
+
+def build_execution_output_data(results: Dict[str, Any]) -> Dict[str, Any]:
+    """전략 실행 결과의 표준 JSON 데이터를 생성합니다."""
     output_data = {
         "timestamp": datetime.now().isoformat(),
         "strategies": results,
     }
-    return json.dumps(output_data, indent=2, ensure_ascii=False)
+    return output_data
+
+
+def save_execution_output_json(results: Dict[str, Any], file_path: str) -> None:
+    """전략 실행 결과를 JSON 파일로 저장합니다."""
+    output_data = build_execution_output_data(results)
+    output_dir = os.path.dirname(file_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(output_data, f, indent=2, ensure_ascii=False)
 
 
 def format_output_csv(results: Dict[str, Any]) -> str:
@@ -317,6 +341,9 @@ def main():
         requested_strategies = [args.strategy.upper()]
 
     results = run_selected_strategies(requested_strategies, "cli")
+
+    if args.save_json:
+        save_execution_output_json(results, args.save_json)
 
     # 최적화 요약 출력 (verbose 모드에서만)
     if args.verbose:
