@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import sys
+from numbers import Real
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -397,7 +398,12 @@ def format_history_snapshot_detail(
         if isinstance(allocation, dict):
             if allocation:
                 for asset, percentage in sorted(allocation.items()):
-                    output.append(f"  - {asset}: {percentage:.2f}%")
+                    if isinstance(percentage, Real) and not isinstance(
+                        percentage, bool
+                    ):
+                        output.append(f"  - {asset}: {percentage:.2f}%")
+                    else:
+                        output.append(f"  - {asset}: invalid value ({percentage})")
             else:
                 output.append("  - no allocations")
         else:

@@ -861,3 +861,30 @@ def test_show_history_respects_json_output(
     parsed = json.loads(capsys.readouterr().out)
     assert parsed == expected_payload
     run_selected_mock.assert_not_called()
+
+
+def test_show_history_handles_invalid_allocation_values_gracefully(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, _cli_executor_module = cli_module
+    snapshot_path = tmp_path / "20260104_040404.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-04T04:04:04",
+                "strategies": {
+                    "HAA": {"SPY": "oops", "IEF": 40.0},
+                    "KAW": {"TIGER S&P500": None},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _run_cli(monkeypatch, cli_module, ["--show-history", str(snapshot_path)])
+
+    output = capsys.readouterr().out
+    assert "Execution Snapshot Detail" in output
+    assert "- IEF: 40.00%" in output
+    assert "- SPY: invalid value (oops)" in output
+    assert "- TIGER S&P500: invalid value (None)" in output
