@@ -7,11 +7,12 @@ import argparse
 import json
 import sys
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from config import STRATEGY_CONFIG
 from execution_output import (
     build_execution_output_data as _build_execution_output_data,
+    format_compact_execution_diff_summary as _format_compact_execution_diff_summary,
     format_execution_diff_summary as _format_execution_diff_summary,
     load_execution_output_json as _load_execution_output_json,
     save_execution_output_json as _save_execution_output_json,
@@ -178,6 +179,13 @@ def format_execution_diff_summary(
 ) -> str:
     """이전 실행 결과와 현재 실행 결과의 변경점을 텍스트로 요약합니다."""
     return _format_execution_diff_summary(previous_data, current_results)
+
+
+def format_compact_execution_diff_summary(
+    previous_data: Dict[str, Any], current_results: Dict[str, Any]
+) -> Optional[str]:
+    """이전 실행 결과와 현재 실행 결과의 변경점을 간결하게 요약합니다."""
+    return _format_compact_execution_diff_summary(previous_data, current_results)
 
 
 def format_output_csv(results: Dict[str, Any]) -> str:

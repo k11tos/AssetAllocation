@@ -322,6 +322,93 @@ def test_main_logs_diff_when_previous_snapshot_exists(
     )
 
 
+def test_main_reports_compact_diff_in_info_messages(
+    monkeypatch, main_module, tmp_path
+):
+    """Scheduled run surfaces a compact diff summary in regular message flow."""
+    output_dir = tmp_path / "outputs"
+    history_dir = output_dir / "history"
+    latest_path = output_dir / "latest.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    latest_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-01T00:00:00",
+                "strategies": {
+                    "HAA": {"SPY": 60.0, "IEF": 40.0},
+                    "KAW": {"TIGER S&P500": 100.0},
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
+    )
+
+    info_message_mock, _, _, _ = _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 50.0, "IEF": 50.0},
+        kaw_result={"TIGER S&P500": 100.0},
+    )
+
+    emitted_messages = [call.args[0] for call in info_message_mock.call_args_list]
+    compact_messages = [
+        message
+        for message in emitted_messages
+        if message.startswith("Scheduled diff:")
+    ]
+    assert len(compact_messages) == 1
+    assert "1 strategies changed" in compact_messages[0]
+    assert "2 allocation entries changed" in compact_messages[0]
+
+
+def test_main_skips_compact_diff_message_when_no_changes(
+    monkeypatch, main_module, tmp_path
+):
+    """No-change scheduled runs avoid extra diff noise in regular messages."""
+    output_dir = tmp_path / "outputs"
+    history_dir = output_dir / "history"
+    latest_path = output_dir / "latest.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    latest_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-01T00:00:00",
+                "strategies": {
+                    "HAA": {"SPY": 50.0},
+                    "KAW": {"TIGER S&P500": 50.0},
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
+    )
+
+    info_message_mock, _, _, _ = _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 50.0},
+        kaw_result={"TIGER S&P500": 50.0},
+    )
+
+    emitted_messages = [call.args[0] for call in info_message_mock.call_args_list]
+    assert not any(message.startswith("Scheduled diff:") for message in emitted_messages)
+
+
 def test_main_continues_when_previous_snapshot_is_malformed_but_loadable(
     monkeypatch, main_module, tmp_path
 ):
