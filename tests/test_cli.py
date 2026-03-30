@@ -429,6 +429,102 @@ def test_format_execution_diff_summary_includes_unchanged_counts(cli_module):
     assert "Unchanged allocation entries: 2" in diff
 
 
+def test_compare_json_with_json_output_keeps_stdout_valid_json(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, cli_executor_module = cli_module
+    compare_path = tmp_path / "previous.json"
+    compare_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2025-01-01T00:00:00",
+                "strategies": {"HAA": {"SPY": 60.0, "IEF": 40.0}},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_haa_strategy",
+        Mock(return_value={"SPY": 55.0, "IEF": 45.0}),
+    )
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+
+    _run_cli(
+        monkeypatch,
+        cli_module,
+        [
+            "--strategy",
+            "haa",
+            "--output",
+            "json",
+            "--compare-json",
+            str(compare_path),
+        ],
+    )
+
+    output = capsys.readouterr().out
+    parsed = json.loads(output)
+    assert parsed["strategies"] == {"HAA": {"SPY": 55.0, "IEF": 45.0}}
+    assert "Execution Result Diff" not in output
+
+
+def test_compare_json_with_csv_output_keeps_stdout_csv_only(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, cli_executor_module = cli_module
+    compare_path = tmp_path / "previous.json"
+    compare_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2025-01-01T00:00:00",
+                "strategies": {"HAA": {"SPY": 60.0, "IEF": 40.0}},
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_haa_strategy",
+        Mock(return_value={"SPY": 55.0, "IEF": 45.0}),
+    )
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+
+    _run_cli(
+        monkeypatch,
+        cli_module,
+        [
+            "--strategy",
+            "haa",
+            "--output",
+            "csv",
+            "--compare-json",
+            str(compare_path),
+        ],
+    )
+
+    output = capsys.readouterr().out
+    lines = [line for line in output.splitlines() if line.strip()]
+    assert lines[0] == "Strategy,Asset,Percentage"
+    assert "HAA,SPY,55.00" in lines
+    assert "HAA,IEF,45.00" in lines
+    assert "Execution Result Diff" not in output
+
+
 def test_rebalance_uses_rebalancing_flow(monkeypatch, cli_module, capsys):
     cli_module, cli_executor_module = cli_module
     rebalance_payload = {

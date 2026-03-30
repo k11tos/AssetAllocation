@@ -493,7 +493,7 @@ def main():
     else:  # text
         print(format_output_text(results))
 
-    if diff_output:
+    if diff_output and args.output == "text":
         print()
         print(diff_output)
 
