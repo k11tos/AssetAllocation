@@ -5,6 +5,7 @@ Command Line Interface for Asset Allocation
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -27,6 +28,8 @@ from utils.strategy_optimizer import (
     print_optimization_summary,
 )
 from services.data_service import DataService
+
+DEFAULT_HISTORY_DIR = "outputs/history"
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -94,6 +97,17 @@ Examples:
         help=(
             "현재 전략 실행 결과를 이전 JSON 결과와 비교할 경로 "
             "(예: outputs/previous.json)"
+        ),
+    )
+
+    parser.add_argument(
+        "--history",
+        nargs="?",
+        const=10,
+        type=int,
+        help=(
+            "저장된 실행 기록 요약 조회 "
+            "(기본 최근 10개, 예: --history 5)"
         ),
     )
 
@@ -298,6 +312,61 @@ def format_rebalance_csv(rebalance_results: Dict[str, Any]) -> str:
     return output.getvalue()
 
 
+def _get_recent_history_file_paths(
+    history_dir: str, limit: int
+) -> List[str]:
+    """히스토리 디렉토리에서 최신 스냅샷 파일 경로를 반환합니다."""
+    if limit <= 0:
+        raise ValueError("History count must be greater than 0")
+    if not os.path.isdir(history_dir):
+        return []
+
+    history_file_names = [
+        file_name
+        for file_name in os.listdir(history_dir)
+        if file_name.endswith(".json")
+    ]
+    history_file_names.sort(reverse=True)
+    return [
+        os.path.join(history_dir, file_name)
+        for file_name in history_file_names[:limit]
+    ]
+
+
+def format_history_summary(history_dir: str, limit: int) -> str:
+    """저장된 실행 히스토리 스냅샷을 간결하게 요약합니다."""
+    history_file_paths = _get_recent_history_file_paths(history_dir, limit)
+    if not history_file_paths:
+        return (
+            f"No history snapshots found in {history_dir}. "
+            "Run scheduled/main execution first."
+        )
+
+    output = [
+        f"Execution History (latest {len(history_file_paths)})",
+        "=" * 60,
+    ]
+
+    for index, file_path in enumerate(history_file_paths, start=1):
+        file_name = os.path.basename(file_path)
+        try:
+            data = _load_execution_output_json(file_path)
+            timestamp = data.get("timestamp", "unknown")
+            strategies = data.get("strategies", {})
+            strategy_names = (
+                ", ".join(sorted(strategies.keys()))
+                if isinstance(strategies, dict) and strategies
+                else "none"
+            )
+            output.append(
+                f"{index:>2}. {timestamp} | {file_name} | {strategy_names}"
+            )
+        except Exception as e:
+            output.append(f"{index:>2}. {file_name} | invalid snapshot ({e})")
+
+    return "\n".join(output)
+
+
 def main():
     """CLI 메인 함수"""
     parser = create_parser()
@@ -308,6 +377,13 @@ def main():
         import logging
 
         logging.getLogger().setLevel(logging.DEBUG)
+
+    if args.history is not None:
+        if args.history <= 0:
+            print("Error: --history count must be greater than 0")
+            sys.exit(1)
+        print(format_history_summary(DEFAULT_HISTORY_DIR, args.history))
+        return
 
     # 티커 파일 설정
     if args.tickers:
