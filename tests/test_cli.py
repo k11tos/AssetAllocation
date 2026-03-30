@@ -344,6 +344,91 @@ def test_save_json_not_used_by_default(
     assert not default_output_path.exists()
 
 
+def test_compare_json_prints_human_readable_diff(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, cli_executor_module = cli_module
+    compare_path = tmp_path / "previous.json"
+    compare_payload = {
+        "timestamp": "2025-01-01T00:00:00",
+        "strategies": {
+            "HAA": {"SPY": 60.0, "IEF": 40.0},
+            "KAW": {"KODEX200": 100.0},
+            "OLD": {"CASH": 100.0},
+        },
+    }
+    compare_path.write_text(
+        json.dumps(compare_payload, ensure_ascii=False), encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_haa_strategy",
+        Mock(return_value={"SPY": 55.0, "IEF": 35.0, "GLD": 10.0}),
+    )
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_baa_strategy",
+        Mock(return_value={"QQQ": 100.0}),
+    )
+    monkeypatch.setattr(
+        cli_executor_module, "run_kaw_strategy", Mock(return_value={"KODEX200": 100.0})
+    )
+    monkeypatch.setattr(
+        cli_executor_module, "run_vaa_strategy", Mock(return_value={"BIL": 100.0})
+    )
+    monkeypatch.setattr(
+        cli_executor_module, "run_laa_strategy", Mock(return_value={"IWD": 100.0})
+    )
+    monkeypatch.setattr(
+        cli_executor_module, "run_bdaa_strategy", Mock(return_value={"SPY": 100.0})
+    )
+    monkeypatch.setattr(
+        cli_executor_module, "run_mdm_strategy", Mock(return_value={"SHY": 100.0})
+    )
+
+    _run_cli(
+        monkeypatch,
+        cli_module,
+        ["--strategy", "all", "--compare-json", str(compare_path)],
+    )
+
+    output = capsys.readouterr().out
+    assert "Asset Allocation Report" in output
+    assert "Execution Result Diff" in output
+    assert "Added strategies:" in output
+    assert "Removed strategies: 1" in output
+    assert "- OLD" in output
+    assert "HAA:" in output
+    assert "* SPY: 60.00% -> 55.00% (-5.00%)" in output
+    assert "* IEF: 40.00% -> 35.00% (-5.00%)" in output
+    assert "+ Added asset GLD: 10.00%" in output
+
+
+def test_format_execution_diff_summary_includes_unchanged_counts(cli_module):
+    cli_module, _cli_executor_module = cli_module
+    previous = {
+        "timestamp": "2025-01-01T00:00:00",
+        "strategies": {
+            "HAA": {"SPY": 50.0, "IEF": 50.0},
+            "BAA": {"QQQ": 100.0},
+        },
+    }
+    current = {
+        "HAA": {"SPY": 50.0, "IEF": 50.0},
+        "BAA": {"QQQ": 90.0, "BIL": 10.0},
+        "LAA": {"IWD": 100.0},
+    }
+
+    diff = cli_module.format_execution_diff_summary(previous, current)
+
+    assert "Added strategies: 1" in diff
+    assert "Changed strategies: 1" in diff
+    assert "Unchanged strategies: 1" in diff
+    assert "Changed allocation entries: 2" in diff
+    assert "Unchanged allocation entries: 2" in diff
+
+
 def test_rebalance_uses_rebalancing_flow(monkeypatch, cli_module, capsys):
     cli_module, cli_executor_module = cli_module
     rebalance_payload = {

@@ -130,6 +130,9 @@ uv run asset-cli --output text
 # Save execution results to JSON file
 uv run asset-cli --strategy haa --save-json outputs/latest.json
 
+# Compare current run with a previously saved JSON result
+uv run asset-cli --strategy haa --compare-json outputs/previous.json
+
 # Verbose logging
 uv run asset-cli --verbose
 
