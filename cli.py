@@ -13,11 +13,11 @@ from typing import Any, Dict, List, Optional
 
 from config import STRATEGY_CONFIG
 from execution_output import (
-    build_execution_output_data as _build_execution_output_data,
-    format_compact_execution_diff_summary as _format_compact_execution_diff_summary,
-    format_execution_diff_summary as _format_execution_diff_summary,
+    build_execution_output_data,
+    format_compact_execution_diff_summary,
+    format_execution_diff_summary,
     load_execution_output_json as _load_execution_output_json,
-    save_execution_output_json as _save_execution_output_json,
+    save_execution_output_json,
 )
 from main import main as run_main
 from portfolio import (
@@ -31,6 +31,7 @@ from utils.strategy_optimizer import (
 from services.data_service import DataService
 
 DEFAULT_HISTORY_DIR = "outputs/history"
+_format_compact_execution_diff_summary = format_compact_execution_diff_summary
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -170,16 +171,6 @@ def format_output_json(results: Dict[str, Any]) -> str:
     return json.dumps(output_data, indent=2, ensure_ascii=False)
 
 
-def build_execution_output_data(results: Dict[str, Any]) -> Dict[str, Any]:
-    """전략 실행 결과의 표준 JSON 데이터를 생성합니다."""
-    return _build_execution_output_data(results)
-
-
-def save_execution_output_json(results: Dict[str, Any], file_path: str) -> None:
-    """전략 실행 결과를 JSON 파일로 저장합니다."""
-    _save_execution_output_json(results, file_path)
-
-
 def load_execution_output_json(file_path: str) -> Dict[str, Any]:
     """저장된 전략 실행 결과 JSON 파일을 로드합니다."""
     try:
@@ -193,20 +184,6 @@ def load_execution_output_json(file_path: str) -> Dict[str, Any]:
     except ValueError as e:
         print(f"Error: {e}")
         sys.exit(1)
-
-
-def format_execution_diff_summary(
-    previous_data: Dict[str, Any], current_results: Dict[str, Any]
-) -> str:
-    """이전 실행 결과와 현재 실행 결과의 변경점을 텍스트로 요약합니다."""
-    return _format_execution_diff_summary(previous_data, current_results)
-
-
-def format_compact_execution_diff_summary(
-    previous_data: Dict[str, Any], current_results: Dict[str, Any]
-) -> Optional[str]:
-    """이전 실행 결과와 현재 실행 결과의 변경점을 간결하게 요약합니다."""
-    return _format_compact_execution_diff_summary(previous_data, current_results)
 
 
 def format_output_csv(results: Dict[str, Any]) -> str:
