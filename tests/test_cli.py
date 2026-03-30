@@ -712,7 +712,7 @@ def test_history_lists_recent_snapshots(
     output = capsys.readouterr().out
     assert "Execution History (latest 1)" in output
     assert "20260102_020202.json" in output
-    assert "HAA, KAW" in output
+    assert "strategies=2 [HAA, KAW]" in output
     assert "20260101_010101.json" not in output
     run_selected_mock.assert_not_called()
 
@@ -827,11 +827,14 @@ def test_show_history_displays_snapshot_details_text(
     assert "Execution Snapshot Detail" in output
     assert f"File: {snapshot_path}" in output
     assert "Timestamp: 2026-01-02T02:02:02" in output
-    assert "Strategies (2): HAA, KAW" in output
-    assert "HAA:" in output
+    assert "Strategy count: 2" in output
+    assert "Strategies: HAA, KAW" in output
+    assert "[HAA]" in output
+    assert "Assets: 2" in output
     assert "- IEF: 40.00%" in output
     assert "- SPY: 60.00%" in output
-    assert "KAW:" in output
+    assert "[KAW]" in output
+    assert "Assets: 1" in output
     assert "- TIGER S&P500: 100.00%" in output
     run_selected_mock.assert_not_called()
 
@@ -885,6 +888,8 @@ def test_show_history_handles_invalid_allocation_values_gracefully(
 
     output = capsys.readouterr().out
     assert "Execution Snapshot Detail" in output
+    assert "Assets: 2" in output
     assert "- IEF: 40.00%" in output
     assert "- SPY: invalid value (oops)" in output
+    assert "Assets: 1" in output
     assert "- TIGER S&P500: invalid value (None)" in output

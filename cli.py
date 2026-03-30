@@ -361,15 +361,18 @@ def format_history_summary(history_dir: str, limit: int) -> str:
             timestamp = data.get("timestamp", "unknown")
             strategies = data.get("strategies", {})
             strategy_names = (
-                ", ".join(sorted(strategies.keys()))
-                if isinstance(strategies, dict) and strategies
-                else "none"
+                sorted(strategies.keys()) if isinstance(strategies, dict) else []
             )
+            strategy_count = len(strategy_names)
+            strategy_display = ", ".join(strategy_names) if strategy_names else "-"
             output.append(
-                f"{index:>2}. {timestamp} | {file_name} | {strategy_names}"
+                f"{index:>2}. {timestamp} | file={file_name} | "
+                f"strategies={strategy_count} [{strategy_display}]"
             )
         except Exception as e:
-            output.append(f"{index:>2}. {file_name} | invalid snapshot ({e})")
+            output.append(
+                f"{index:>2}. {file_name} | status=invalid snapshot ({e})"
+            )
 
     return "\n".join(output)
 
@@ -386,7 +389,10 @@ def format_history_snapshot_detail(
     if snapshot_path:
         output.append(f"File: {snapshot_path}")
     output.append(f"Timestamp: {timestamp}")
-    output.append(f"Strategies ({len(strategy_names)}): {', '.join(strategy_names) if strategy_names else 'none'}")
+    output.append(f"Strategy count: {len(strategy_names)}")
+    output.append(
+        f"Strategies: {', '.join(strategy_names) if strategy_names else 'none'}"
+    )
 
     if not strategy_names:
         return "\n".join(output)
@@ -394,8 +400,9 @@ def format_history_snapshot_detail(
     output.append("")
     for strategy_name in strategy_names:
         allocation = strategies.get(strategy_name)
-        output.append(f"{strategy_name}:")
+        output.append(f"[{strategy_name}]")
         if isinstance(allocation, dict):
+            output.append(f"  Assets: {len(allocation)}")
             if allocation:
                 for asset, percentage in sorted(allocation.items()):
                     if isinstance(percentage, Real) and not isinstance(
@@ -407,6 +414,7 @@ def format_history_snapshot_detail(
             else:
                 output.append("  - no allocations")
         else:
+            output.append("  Assets: n/a")
             output.append(f"  - result: {allocation}")
 
     return "\n".join(output)

@@ -238,11 +238,22 @@ def format_compact_execution_diff_summary(
     ]
 
     for strategy_name in added_strategies[:max_strategy_highlights]:
-        compact_lines.append(f"- {strategy_name}: added strategy")
+        compact_lines.append(f"- [+] {strategy_name}: strategy added")
     for strategy_name in removed_strategies[:max_strategy_highlights]:
-        compact_lines.append(f"- {strategy_name}: removed strategy")
+        compact_lines.append(f"- [-] {strategy_name}: strategy removed")
 
     for highlight in strategy_highlights[:max_strategy_highlights]:
-        compact_lines.append(f"- {highlight}")
+        compact_lines.append(f"- [~] {highlight}")
+
+    displayed_highlight_count = (
+        min(len(added_strategies), max_strategy_highlights)
+        + min(len(removed_strategies), max_strategy_highlights)
+        + min(len(strategy_highlights), max_strategy_highlights)
+    )
+    remaining_highlight_count = changed_strategy_count - displayed_highlight_count
+    if remaining_highlight_count > 0:
+        compact_lines.append(
+            f"- ... and {remaining_highlight_count} more strategy changes"
+        )
 
     return "\n".join(compact_lines)
