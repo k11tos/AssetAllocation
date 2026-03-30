@@ -64,7 +64,6 @@ def main_module(monkeypatch):
 
     perf_module = types.ModuleType("utils.performance_monitor")
     perf_module.get_performance_monitor = lambda: Mock()
-
     optimizer_module = types.ModuleType("utils.strategy_optimizer")
     optimizer_module.get_required_tickers_for_strategy = lambda _name: ["SPY"]
 
@@ -78,7 +77,6 @@ def main_module(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "utils.performance_monitor", perf_module)
     monkeypatch.setitem(sys.modules, "utils.strategy_optimizer", optimizer_module)
-
     return importlib.import_module("main")
 
 
@@ -101,35 +99,31 @@ def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_re
         "get_performance_monitor",
         lambda: performance_monitor,
     )
+    run_selected_mock = Mock(wraps=main_module.run_selected_strategies)
+    monkeypatch.setattr(main_module, "run_selected_strategies", run_selected_mock)
 
-    if isinstance(haa_result, Exception):
-        monkeypatch.setattr(
-            main_module,
-            "execute_haa_strategy",
-            Mock(side_effect=haa_result),
-        )
-    else:
-        monkeypatch.setattr(
-            main_module,
-            "execute_haa_strategy",
-            lambda: haa_result,
-        )
-
-    if isinstance(kaw_result, Exception):
-        monkeypatch.setattr(
-            main_module,
-            "get_korean_all_weather_allocation",
-            Mock(side_effect=kaw_result),
-        )
-    else:
-        monkeypatch.setattr(
-            main_module,
-            "get_korean_all_weather_allocation",
-            lambda: kaw_result,
-        )
+    monkeypatch.setattr(
+        main_module,
+        "execute_haa_strategy",
+        Mock(side_effect=haa_result)
+        if isinstance(haa_result, Exception)
+        else Mock(return_value=haa_result),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "execute_kaw_strategy",
+        Mock(side_effect=kaw_result)
+        if isinstance(kaw_result, Exception)
+        else Mock(return_value=kaw_result),
+    )
 
     main_module.main()
-    return info_message_mock, print_allocation_mock, performance_monitor
+    return (
+        info_message_mock,
+        print_allocation_mock,
+        performance_monitor,
+        run_selected_mock,
+    )
 
 
 def test_main_exits_when_validate_config_fails(monkeypatch, main_module):
@@ -151,7 +145,7 @@ def test_main_exits_when_validate_config_fails(monkeypatch, main_module):
 
 def test_main_succeeds_when_haa_and_kaw_succeed(monkeypatch, main_module):
     """Both strategies succeed -> normal completion and 100% summary."""
-    info_message_mock, print_allocation_mock, performance_monitor = (
+    info_message_mock, print_allocation_mock, performance_monitor, run_selected_mock = (
         _run_main_with_strategy_results(
             monkeypatch,
             main_module,
@@ -161,13 +155,14 @@ def test_main_succeeds_when_haa_and_kaw_succeed(monkeypatch, main_module):
     )
 
     assert print_allocation_mock.call_count == 2
+    run_selected_mock.assert_called_once_with(["HAA", "KAW"], "main")
     assert info_message_mock.call_args_list[-1].args[0] == "성공률: 100.0% (2/2)"
     performance_monitor.log_summary.assert_called_once()
 
 
 def test_main_continues_when_haa_fails_and_kaw_succeeds(monkeypatch, main_module):
     """HAA fails and KAW succeeds -> process continues and succeeds overall."""
-    info_message_mock, print_allocation_mock, performance_monitor = (
+    info_message_mock, print_allocation_mock, performance_monitor, _ = (
         _run_main_with_strategy_results(
             monkeypatch,
             main_module,
@@ -183,7 +178,7 @@ def test_main_continues_when_haa_fails_and_kaw_succeeds(monkeypatch, main_module
 
 def test_main_continues_when_haa_succeeds_and_kaw_fails(monkeypatch, main_module):
     """HAA succeeds and KAW fails -> process continues and succeeds overall."""
-    info_message_mock, print_allocation_mock, performance_monitor = (
+    info_message_mock, print_allocation_mock, performance_monitor, _ = (
         _run_main_with_strategy_results(
             monkeypatch,
             main_module,
@@ -206,12 +201,8 @@ def test_main_exits_when_all_strategies_fail(monkeypatch, main_module):
     monkeypatch.setattr(main_module, "load_tickers", lambda: ["SPY"])
     monkeypatch.setattr(main_module, "print_info_message", info_message_mock)
     monkeypatch.setattr(main_module, "print_asset_allocation", Mock())
-    monkeypatch.setattr(main_module, "execute_haa_strategy", lambda: None)
-    monkeypatch.setattr(
-        main_module,
-        "get_korean_all_weather_allocation",
-        Mock(side_effect=StrategyExecutionError("kaw failed")),
-    )
+    monkeypatch.setattr(main_module, "execute_haa_strategy", Mock(return_value=None))
+    monkeypatch.setattr(main_module, "execute_kaw_strategy", Mock(return_value=None))
     monkeypatch.setattr(
         main_module,
         "get_performance_monitor",
