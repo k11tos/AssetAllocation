@@ -214,8 +214,6 @@ def main() -> None:
             total_number_of_strategy,
         )
 
-        persist_scheduled_execution_result(strategy_results)
-
         # 성능 모니터링 결과 출력
         performance_monitor = get_performance_monitor()
         performance_monitor.log_summary()
@@ -226,6 +224,8 @@ def main() -> None:
                 "generated"
             )
             sys.exit(1)
+
+        persist_scheduled_execution_result(strategy_results)
 
     except Exception as e:
         LoggingConfig.log_error_with_context(LOGGER, e, "main process")
@@ -253,10 +253,16 @@ def persist_scheduled_execution_result(
         )
 
     if previous_result_data is not None:
-        diff_summary = format_execution_diff_summary(
-            previous_result_data, strategy_results
-        )
-        LOGGER.info("📊 Scheduled execution diff summary:\n%s", diff_summary)
+        try:
+            diff_summary = format_execution_diff_summary(
+                previous_result_data, strategy_results
+            )
+            LOGGER.info("📊 Scheduled execution diff summary:\n%s", diff_summary)
+        except Exception as e:
+            LOGGER.warning(
+                "⚠️ Failed to format scheduled execution diff summary: %s",
+                e,
+            )
 
     history_file_path = os.path.join(
         SCHEDULED_HISTORY_DIR,
