@@ -154,6 +154,11 @@ def format_compact_execution_diff_summary(
     changed_entries = 0
     strategy_highlights: List[str] = []
 
+    def _count_changed_entries_for_strategy_payload(payload: Any) -> int:
+        if isinstance(payload, dict):
+            return len(payload)
+        return 1
+
     for strategy_name in common_names:
         previous_allocation = previous_strategies.get(strategy_name)
         current_allocation = current_results.get(strategy_name)
@@ -206,8 +211,20 @@ def format_compact_execution_diff_summary(
             strategy_highlights.append(f"{strategy_name}: allocation changed")
 
     # Added/removed strategies are meaningful strategy-level changes.
-    added_or_removed = (current_names - previous_names) | (previous_names - current_names)
+    added_strategies = sorted(current_names - previous_names)
+    removed_strategies = sorted(previous_names - current_names)
+    added_or_removed = set(added_strategies) | set(removed_strategies)
     changed_strategy_count = len(changed_strategies) + len(added_or_removed)
+
+    for strategy_name in added_strategies:
+        changed_entries += _count_changed_entries_for_strategy_payload(
+            current_results.get(strategy_name)
+        )
+
+    for strategy_name in removed_strategies:
+        changed_entries += _count_changed_entries_for_strategy_payload(
+            previous_strategies.get(strategy_name)
+        )
 
     if changed_strategy_count == 0:
         return None
@@ -220,9 +237,9 @@ def format_compact_execution_diff_summary(
         )
     ]
 
-    for strategy_name in sorted(current_names - previous_names)[:max_strategy_highlights]:
+    for strategy_name in added_strategies[:max_strategy_highlights]:
         compact_lines.append(f"- {strategy_name}: added strategy")
-    for strategy_name in sorted(previous_names - current_names)[:max_strategy_highlights]:
+    for strategy_name in removed_strategies[:max_strategy_highlights]:
         compact_lines.append(f"- {strategy_name}: removed strategy")
 
     for highlight in strategy_highlights[:max_strategy_highlights]:
