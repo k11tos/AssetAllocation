@@ -761,3 +761,38 @@ def test_history_prints_message_when_directory_has_no_snapshots(
 
     output = capsys.readouterr().out
     assert "No history snapshots found" in output
+
+
+def test_history_ignores_invalid_ticker_path(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, _cli_executor_module = cli_module
+    history_dir = tmp_path / "history"
+    history_dir.mkdir(parents=True, exist_ok=True)
+    (history_dir / "20260102_020202.json").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-02T02:02:02",
+                "strategies": {"HAA": {"SPY": 100.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    run_selected_mock = Mock()
+    load_tickers_mock = Mock(side_effect=FileNotFoundError("missing tickers"))
+    monkeypatch.setattr(cli_module, "run_selected_strategies", run_selected_mock)
+    monkeypatch.setattr(cli_module, "load_tickers", load_tickers_mock)
+    monkeypatch.setattr(cli_module, "DEFAULT_HISTORY_DIR", str(history_dir))
+
+    _run_cli(
+        monkeypatch,
+        cli_module,
+        ["--history", "1", "--tickers", "does-not-exist.json"],
+    )
+
+    output = capsys.readouterr().out
+    assert "Execution History (latest 1)" in output
+    assert "20260102_020202.json" in output
+    load_tickers_mock.assert_not_called()
+    run_selected_mock.assert_not_called()

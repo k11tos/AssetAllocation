@@ -378,19 +378,19 @@ def main():
 
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # 티커 파일 설정
-    if args.tickers:
-        # 티커 파일 유효성 검증 및 로드
-        load_tickers(args.tickers)
-        # 설정 업데이트
-        STRATEGY_CONFIG.TICKER_FILE = args.tickers
-
     if args.history is not None:
         if args.history <= 0:
             print("Error: --history count must be greater than 0")
             sys.exit(1)
         print(format_history_summary(DEFAULT_HISTORY_DIR, args.history))
         return
+
+    # 티커 파일 설정
+    if args.tickers:
+        # 티커 파일 유효성 검증 및 로드
+        load_tickers(args.tickers)
+        # 설정 업데이트
+        STRATEGY_CONFIG.TICKER_FILE = args.tickers
 
     # 리밸런싱 모드
     if args.rebalance:
