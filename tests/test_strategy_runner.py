@@ -59,6 +59,17 @@ def test_get_available_strategy_runners_raises_for_unknown_entrypoint():
         get_available_strategy_runners("unknown")
 
 
+def test_run_selected_strategies_raises_for_unknown_entrypoint_with_empty_list():
+    with pytest.raises(KeyError):
+        run_selected_strategies([], "unknown")
+
+
+def test_run_selected_strategies_returns_empty_for_valid_entrypoint_with_empty_list(
+    fake_cli_executor_module,
+):
+    assert run_selected_strategies([], "cli") == {}
+
+
 def test_get_available_strategy_runners_resolves_main_registry(monkeypatch):
     main_module = types.ModuleType("main")
     main_module.execute_haa_strategy = lambda: {"HAA": 100.0}

@@ -58,14 +58,10 @@ def run_selected_strategies(
     entrypoint: str,
 ) -> Dict[str, StrategyResult]:
     """Run each requested strategy while isolating failures per strategy."""
-    available_runners = get_available_strategy_runners(entrypoint)
-
-    results: Dict[str, StrategyResult] = {}
-    for strategy_name in requested_strategies:
-        runner = available_runners[strategy_name]
-        try:
-            results[strategy_name] = runner()
-        except Exception:
-            results[strategy_name] = None
-
-    return results
+    # Validate entrypoint eagerly to preserve prior behavior even when
+    # no strategies are requested.
+    get_available_strategy_runners(entrypoint)
+    return {
+        strategy_name: run_strategy(strategy_name, entrypoint)
+        for strategy_name in requested_strategies
+    }
