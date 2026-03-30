@@ -483,6 +483,7 @@ def test_format_compact_execution_diff_summary_counts_added_strategy_entries(
     assert summary is not None
     assert "1 strategies changed" in summary
     assert "2 allocation entries changed" in summary
+    assert "- [+] LAA: strategy added" in summary
 
 
 def test_format_compact_execution_diff_summary_counts_removed_strategy_entries(
@@ -503,6 +504,7 @@ def test_format_compact_execution_diff_summary_counts_removed_strategy_entries(
     assert summary is not None
     assert "1 strategies changed" in summary
     assert "2 allocation entries changed" in summary
+    assert "- [-] KAW: strategy removed" in summary
 
 
 def test_format_compact_execution_diff_summary_mixed_strategy_and_asset_changes(
@@ -526,6 +528,53 @@ def test_format_compact_execution_diff_summary_mixed_strategy_and_asset_changes(
     assert summary is not None
     assert "3 strategies changed" in summary
     assert "4 allocation entries changed" in summary
+    assert "- [~] HAA:" in summary
+
+
+def test_format_compact_execution_diff_summary_uses_change_marker_for_asset_delta(
+    cli_module,
+):
+    cli_module, _cli_executor_module = cli_module
+    previous = {
+        "timestamp": "2025-01-01T00:00:00",
+        "strategies": {"HAA": {"SPY": 60.0, "IEF": 40.0}},
+    }
+    current = {"HAA": {"SPY": 55.0, "IEF": 45.0}}
+
+    summary = cli_module.format_compact_execution_diff_summary(previous, current)
+
+    assert summary is not None
+    assert "- [~] HAA:" in summary
+    assert "IEF +5.00%" in summary or "SPY -5.00%" in summary
+
+
+def test_format_compact_execution_diff_summary_includes_truncation_line_when_limited(
+    cli_module,
+):
+    cli_module, _cli_executor_module = cli_module
+    previous = {
+        "timestamp": "2025-01-01T00:00:00",
+        "strategies": {
+            "BAA": {"QQQ": 100.0},
+            "HAA": {"SPY": 100.0},
+            "KAW": {"TIGER S&P500": 100.0},
+        },
+    }
+    current = {
+        "HAA": {"SPY": 90.0, "IEF": 10.0},
+        "LAA": {"IWD": 100.0},
+    }
+
+    summary = cli_module._format_compact_execution_diff_summary(
+        previous,
+        current,
+        max_strategy_highlights=1,
+        max_asset_highlights_per_strategy=1,
+    )
+
+    assert summary is not None
+    assert "4 strategies changed" in summary
+    assert "- ... and 1 more strategy changes" in summary
 
 
 def test_compare_json_with_json_output_keeps_stdout_valid_json(
