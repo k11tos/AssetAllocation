@@ -137,6 +137,9 @@ uv run asset-cli --strategy haa --compare-json outputs/previous.json
 uv run asset-cli --history
 uv run asset-cli --history 5
 
+# View one saved snapshot in detail
+uv run asset-cli --show-history outputs/history/20260102_020202.json
+
 # Verbose logging
 uv run asset-cli --verbose
 

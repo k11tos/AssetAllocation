@@ -796,3 +796,95 @@ def test_history_ignores_invalid_ticker_path(
     assert "20260102_020202.json" in output
     load_tickers_mock.assert_not_called()
     run_selected_mock.assert_not_called()
+
+
+def test_show_history_displays_snapshot_details_text(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, _cli_executor_module = cli_module
+    snapshot_path = tmp_path / "20260102_020202.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-02T02:02:02",
+                "strategies": {
+                    "HAA": {"SPY": 60.0, "IEF": 40.0},
+                    "KAW": {"TIGER S&P500": 100.0},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    run_selected_mock = Mock()
+    monkeypatch.setattr(cli_module, "run_selected_strategies", run_selected_mock)
+
+    _run_cli(
+        monkeypatch, cli_module, ["--show-history", str(snapshot_path)]
+    )
+
+    output = capsys.readouterr().out
+    assert "Execution Snapshot Detail" in output
+    assert f"File: {snapshot_path}" in output
+    assert "Timestamp: 2026-01-02T02:02:02" in output
+    assert "Strategies (2): HAA, KAW" in output
+    assert "HAA:" in output
+    assert "- IEF: 40.00%" in output
+    assert "- SPY: 60.00%" in output
+    assert "KAW:" in output
+    assert "- TIGER S&P500: 100.00%" in output
+    run_selected_mock.assert_not_called()
+
+
+def test_show_history_respects_json_output(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, _cli_executor_module = cli_module
+    snapshot_path = tmp_path / "20260103_030303.json"
+    expected_payload = {
+        "timestamp": "2026-01-03T03:03:03",
+        "strategies": {"HAA": {"SPY": 100.0}},
+    }
+    snapshot_path.write_text(
+        json.dumps(expected_payload), encoding="utf-8"
+    )
+
+    run_selected_mock = Mock()
+    monkeypatch.setattr(cli_module, "run_selected_strategies", run_selected_mock)
+
+    _run_cli(
+        monkeypatch,
+        cli_module,
+        ["--show-history", str(snapshot_path), "--output", "json"],
+    )
+
+    parsed = json.loads(capsys.readouterr().out)
+    assert parsed == expected_payload
+    run_selected_mock.assert_not_called()
+
+
+def test_show_history_handles_invalid_allocation_values_gracefully(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, _cli_executor_module = cli_module
+    snapshot_path = tmp_path / "20260104_040404.json"
+    snapshot_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-04T04:04:04",
+                "strategies": {
+                    "HAA": {"SPY": "oops", "IEF": 40.0},
+                    "KAW": {"TIGER S&P500": None},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _run_cli(monkeypatch, cli_module, ["--show-history", str(snapshot_path)])
+
+    output = capsys.readouterr().out
+    assert "Execution Snapshot Detail" in output
+    assert "- IEF: 40.00%" in output
+    assert "- SPY: invalid value (oops)" in output
+    assert "- TIGER S&P500: invalid value (None)" in output
