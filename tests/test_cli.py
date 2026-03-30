@@ -3,6 +3,7 @@
 
 import importlib
 import json
+import re
 import sys
 import types
 from unittest.mock import Mock
@@ -671,3 +672,92 @@ def test_rebalance_uses_rebalancing_flow(monkeypatch, cli_module, capsys):
     output = capsys.readouterr().out
     assert "리밸런싱 리포트" in output
     assert "SPY:" in output
+
+
+def test_history_lists_recent_snapshots(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, _cli_executor_module = cli_module
+    history_dir = tmp_path / "history"
+    history_dir.mkdir(parents=True, exist_ok=True)
+
+    (history_dir / "20260101_010101.json").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-01T01:01:01",
+                "strategies": {"HAA": {"SPY": 100.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (history_dir / "20260102_020202.json").write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-02T02:02:02",
+                "strategies": {
+                    "HAA": {"SPY": 60.0},
+                    "KAW": {"TIGER S&P500": 40.0},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    run_selected_mock = Mock()
+    monkeypatch.setattr(cli_module, "run_selected_strategies", run_selected_mock)
+    monkeypatch.setattr(cli_module, "DEFAULT_HISTORY_DIR", str(history_dir))
+
+    _run_cli(monkeypatch, cli_module, ["--history", "1"])
+
+    output = capsys.readouterr().out
+    assert "Execution History (latest 1)" in output
+    assert "20260102_020202.json" in output
+    assert "HAA, KAW" in output
+    assert "20260101_010101.json" not in output
+    run_selected_mock.assert_not_called()
+
+
+def test_history_defaults_to_ten_when_count_omitted(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, _cli_executor_module = cli_module
+    history_dir = tmp_path / "history"
+    history_dir.mkdir(parents=True, exist_ok=True)
+
+    for index in range(11):
+        file_name = f"202601{index + 1:02d}_000000.json"
+        (history_dir / file_name).write_text(
+            json.dumps(
+                {
+                    "timestamp": f"2026-01-{index + 1:02d}T00:00:00",
+                    "strategies": {"HAA": {"SPY": 100.0}},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(cli_module, "DEFAULT_HISTORY_DIR", str(history_dir))
+
+    _run_cli(monkeypatch, cli_module, ["--history"])
+
+    output = capsys.readouterr().out
+    history_lines = [
+        line for line in output.splitlines() if re.match(r"^\s*\d+\.\s", line)
+    ]
+    assert len(history_lines) == 10
+    assert "20260111_000000.json" in output
+    assert "20260101_000000.json" not in output
+
+
+def test_history_prints_message_when_directory_has_no_snapshots(
+    monkeypatch, cli_module, capsys, tmp_path
+):
+    cli_module, _cli_executor_module = cli_module
+    empty_history_dir = tmp_path / "empty_history"
+    empty_history_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(cli_module, "DEFAULT_HISTORY_DIR", str(empty_history_dir))
+
+    _run_cli(monkeypatch, cli_module, ["--history", "3"])
+
+    output = capsys.readouterr().out
+    assert "No history snapshots found" in output

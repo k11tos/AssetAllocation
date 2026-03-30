@@ -133,6 +133,10 @@ uv run asset-cli --strategy haa --save-json outputs/latest.json
 # Compare current run with a previously saved JSON result
 uv run asset-cli --strategy haa --compare-json outputs/previous.json
 
+# View scheduled execution history snapshots (latest 10 by default)
+uv run asset-cli --history
+uv run asset-cli --history 5
+
 # Verbose logging
 uv run asset-cli --verbose
 
