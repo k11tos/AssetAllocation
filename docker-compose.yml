@@ -2,7 +2,7 @@ services:
   asset-allocation:
     build: .
     working_dir: /py_app
-    command: ["python", "main.py"]
+    command: ["main.py"]
     restart: "no"
     environment:
       # FRED API Key (optional)
