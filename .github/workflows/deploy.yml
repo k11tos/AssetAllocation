@@ -56,5 +56,5 @@ jobs:
             set -eu
             cd "$DEPLOY_PATH"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            # Refresh image availability only; recurring execution remains host-scheduled.
             ASSET_ALLOCATION_IMAGE="$IMAGE_NAME" docker compose pull asset-allocation
-            docker compose up -d --no-build asset-allocation
