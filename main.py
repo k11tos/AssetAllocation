@@ -3,7 +3,6 @@
 Get portfolio with original dual momentum, VAA and LAA
 """
 
-import datetime
 import json
 import os
 import sys
@@ -168,7 +167,7 @@ def main() -> None:
         etf_descriptions = {ticker: ticker for ticker in tickers}
 
         # 현재 날짜 출력
-        current_date = datetime.datetime.today().date()
+        current_date = get_execution_now().date()
         formatted_date = current_date.strftime("%Y년 %m월 %d일")
         weekday = current_date.strftime("%A")
 
