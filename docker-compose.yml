@@ -1,10 +1,15 @@
 services:
   asset-allocation:
     build: .
-    container_name: asset-allocation-app
+    working_dir: /py_app
+    command: ["python", "main.py"]
+    restart: "no"
     environment:
       # FRED API Key (optional)
-      - FRED_API_KEY=${FRED_API_KEY:-}
+      FRED_API_KEY: ${FRED_API_KEY:-}
       # Telegram Bot Configuration (optional)
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    volumes:
+      - ./outputs:/py_app/outputs
+      - ./logs:/py_app/logs

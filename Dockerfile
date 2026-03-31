@@ -30,7 +30,7 @@ COPY pyproject.toml uv.lock README.md ./
 COPY strategies ./strategies/
 COPY services ./services/
 COPY utils ./utils/
-COPY config.py exceptions.py main.py portfolio.py cli.py ./
+COPY *.py ./
 RUN pip install --no-cache-dir -e .
 
 # Runtime stage
@@ -61,13 +61,6 @@ COPY . .
 # Change ownership to non-root user
 RUN chown -R app:app /py_app
 USER app
-
-# Expose port (if needed for web interface)
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import yfinance; print('Health check passed')" || exit 1
 
 # Entry point and command
 ENTRYPOINT ["python"]
