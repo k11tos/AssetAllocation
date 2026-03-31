@@ -5,12 +5,20 @@ import json
 import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
+
+EXECUTION_TIMEZONE = ZoneInfo("Asia/Seoul")
+
+
+def get_execution_now() -> datetime:
+    """Return the current execution time in Korea Standard Time."""
+    return datetime.now(EXECUTION_TIMEZONE)
 
 
 def build_execution_output_data(results: Dict[str, Any]) -> Dict[str, Any]:
     """Build the standard JSON payload for strategy execution results."""
     return {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": get_execution_now().isoformat(),
         "strategies": results,
     }
 

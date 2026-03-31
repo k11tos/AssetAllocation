@@ -2,6 +2,7 @@
 """Regression tests for main.py scheduled execution flow."""
 
 import importlib
+import datetime
 import json
 import sys
 import tempfile
@@ -274,6 +275,34 @@ def test_main_saves_latest_and_history_results(
     assert len(history_files) == 1
     history_data = json.loads(history_files[0].read_text(encoding="utf-8"))
     assert history_data["strategies"] == latest_data["strategies"]
+
+
+def test_main_history_snapshot_filename_uses_execution_timezone_clock(
+    monkeypatch, main_module, tmp_path
+):
+    """History snapshot file name is based on shared execution-time helper."""
+    output_dir = tmp_path / "outputs"
+    history_dir = output_dir / "history"
+    latest_path = output_dir / "latest.json"
+    fixed_now = datetime.datetime(2026, 4, 1, 8, 30, 0)
+
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
+    )
+    monkeypatch.setattr(main_module, "get_execution_now", lambda: fixed_now)
+
+    _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 50.0},
+        kaw_result={"TIGER S&P500": 50.0},
+    )
+
+    history_files = list(history_dir.glob("*.json"))
+    assert len(history_files) == 1
+    assert history_files[0].name == "20260401_083000.json"
 
 
 def test_main_logs_diff_when_previous_snapshot_exists(

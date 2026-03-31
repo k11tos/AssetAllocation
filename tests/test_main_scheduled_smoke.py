@@ -74,12 +74,6 @@ def main_module(monkeypatch):
     return importlib.import_module("main")
 
 
-class _FixedDateTime(datetime.datetime):
-    @classmethod
-    def today(cls):
-        return cls(2026, 1, 15, 9, 30, 0)
-
-
 def test_main_scheduled_smoke_success_offline(monkeypatch, main_module):
     """Scheduled main flow runs end-to-end with deterministic mocked services."""
     info_message_mock = Mock()
@@ -105,7 +99,11 @@ def test_main_scheduled_smoke_success_offline(monkeypatch, main_module):
         "get_performance_monitor",
         Mock(return_value=performance_monitor),
     )
-    monkeypatch.setattr(main_module.datetime, "datetime", _FixedDateTime)
+    monkeypatch.setattr(
+        main_module,
+        "get_execution_now",
+        Mock(return_value=datetime.datetime(2026, 1, 15, 9, 30, 0)),
+    )
 
     main_module.main()
 

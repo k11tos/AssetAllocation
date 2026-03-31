@@ -3,7 +3,6 @@
 Get portfolio with original dual momentum, VAA and LAA
 """
 
-import datetime
 import json
 import os
 import sys
@@ -13,6 +12,7 @@ from config import STRATEGY_CONFIG, validate_config
 from execution_output import (
     format_compact_execution_diff_summary,
     format_execution_diff_summary,
+    get_execution_now,
     load_execution_output_json,
     save_execution_output_json,
 )
@@ -167,7 +167,7 @@ def main() -> None:
         etf_descriptions = {ticker: ticker for ticker in tickers}
 
         # 현재 날짜 출력
-        current_date = datetime.datetime.today().date()
+        current_date = get_execution_now().date()
         formatted_date = current_date.strftime("%Y년 %m월 %d일")
         weekday = current_date.strftime("%A")
 
@@ -273,7 +273,7 @@ def persist_scheduled_execution_result(
 
     history_file_path = os.path.join(
         SCHEDULED_HISTORY_DIR,
-        f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+        f"{get_execution_now().strftime('%Y%m%d_%H%M%S')}.json",
     )
 
     try:
