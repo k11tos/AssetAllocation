@@ -1,6 +1,6 @@
 [Unit]
 Description=AssetAllocation monthly one-shot container run
-Wants=docker.service
+Requires=docker.service
 After=docker.service network-online.target
 
 [Service]
