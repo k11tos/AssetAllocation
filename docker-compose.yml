@@ -1,7 +1,7 @@
 services:
   asset-allocation:
     image: ${ASSET_ALLOCATION_IMAGE:-ghcr.io/example-owner/assetallocation:latest}
-    env_files:
+    env_file:
       - .env
     working_dir: /py_app
     command: ["main.py"]
