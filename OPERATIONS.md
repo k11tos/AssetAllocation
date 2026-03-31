@@ -85,7 +85,43 @@ Compact diff reporting is designed for scheduled/regular operational visibility:
 - intended as concise “what changed since last run” signal
 - complements (not replaces) the full diff summary logged internally
 
-## 6) Inspect history and snapshots from CLI
+## 6) Host-side monthly scheduling with systemd (Raspberry Pi)
+
+Use host-level systemd timer scheduling for production monthly runs. GitHub Actions only prepares and updates image availability on the host.
+
+Example files are provided in `deploy/systemd/`:
+- `asset-allocation-monthly.service`
+- `asset-allocation-monthly.timer`
+
+Install on Raspberry Pi host (adjust paths as needed):
+
+```bash
+sudo cp deploy/systemd/asset-allocation-monthly.service /etc/systemd/system/
+sudo cp deploy/systemd/asset-allocation-monthly.timer /etc/systemd/system/
+```
+
+Then:
+
+```bash
+# edit WorkingDirectory in the service if needed
+sudo systemctl daemon-reload
+sudo systemctl enable --now asset-allocation-monthly.timer
+```
+
+Schedule details:
+- `OnCalendar=*-*-01 08:00:00`
+- local host timezone
+- `Persistent=true` (runs once after boot if a scheduled run was missed while offline)
+
+Useful checks:
+
+```bash
+systemctl list-timers asset-allocation-monthly.timer
+systemctl status asset-allocation-monthly.timer
+journalctl -u asset-allocation-monthly.service -n 100 --no-pager
+```
+
+## 7) Inspect history and snapshots from CLI
 
 ```bash
 # list latest 10 snapshots from outputs/history
@@ -101,7 +137,7 @@ uv run asset-cli --show-history outputs/history/20260101_000000.json
 uv run asset-cli --show-history outputs/history/20260101_000000.json --output json
 ```
 
-## 7) Troubleshooting (quick)
+## 8) Troubleshooting (quick)
 
 ### Expected output is missing
 1. Confirm you used the right entrypoint:
