@@ -1,0 +1,15 @@
+[Unit]
+Description=AssetAllocation monthly one-shot container run
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+# Set this to the directory on the Raspberry Pi host that contains docker-compose.yml
+WorkingDirectory=/opt/assetallocation
+# Optional env file on host for secrets/overrides (FRED_API_KEY, Telegram vars, etc.)
+EnvironmentFile=-/etc/default/asset-allocation
+ExecStart=/usr/bin/docker compose run --rm asset-allocation
+
+[Install]
+WantedBy=multi-user.target
