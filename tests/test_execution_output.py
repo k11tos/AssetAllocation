@@ -1,7 +1,14 @@
 #!/usr/bin/python3
 """Focused regression tests for execution_output compact diff formatting."""
 
-from execution_output import format_compact_execution_diff_summary
+import datetime
+from zoneinfo import ZoneInfo
+
+import execution_output
+from execution_output import (
+    build_execution_output_data,
+    format_compact_execution_diff_summary,
+)
 
 
 def test_compact_diff_marks_added_strategy_with_plus() -> None:
@@ -73,3 +80,19 @@ def test_compact_diff_includes_truncation_line_when_strategy_highlights_limited(
     assert summary is not None
     assert "4 strategies changed" in summary
     assert "- ... and 1 more strategy changes" in summary
+
+
+def test_get_execution_now_uses_asia_seoul_timezone() -> None:
+    current = execution_output.get_execution_now()
+
+    assert isinstance(current.tzinfo, ZoneInfo)
+    assert current.tzinfo.key == "Asia/Seoul"
+
+
+def test_build_execution_output_data_uses_timezone_aware_timestamp(monkeypatch) -> None:
+    fixed_now = datetime.datetime(2026, 4, 1, 8, 30, 0, tzinfo=ZoneInfo("Asia/Seoul"))
+    monkeypatch.setattr(execution_output, "get_execution_now", lambda: fixed_now)
+
+    payload = build_execution_output_data({"HAA": {"SPY": 100.0}})
+
+    assert payload["timestamp"] == "2026-04-01T08:30:00+09:00"

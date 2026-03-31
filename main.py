@@ -13,6 +13,7 @@ from config import STRATEGY_CONFIG, validate_config
 from execution_output import (
     format_compact_execution_diff_summary,
     format_execution_diff_summary,
+    get_execution_now,
     load_execution_output_json,
     save_execution_output_json,
 )
@@ -273,7 +274,7 @@ def persist_scheduled_execution_result(
 
     history_file_path = os.path.join(
         SCHEDULED_HISTORY_DIR,
-        f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+        f"{get_execution_now().strftime('%Y%m%d_%H%M%S')}.json",
     )
 
     try:
