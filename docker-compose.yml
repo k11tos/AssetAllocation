@@ -1,16 +1,11 @@
 services:
   asset-allocation:
     image: ${ASSET_ALLOCATION_IMAGE:-ghcr.io/example-owner/assetallocation:latest}
-    build: .
+    env_files:
+      - .env
     working_dir: /py_app
     command: ["main.py"]
     restart: "no"
-    environment:
-      # FRED API Key (optional)
-      FRED_API_KEY: ${FRED_API_KEY:-}
-      # Telegram Bot Configuration (optional)
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - ./outputs:/py_app/outputs
       - ./logs:/py_app/logs
