@@ -53,10 +53,10 @@ jobs:
           GHCR_USERNAME: ${{ secrets.DEPLOY_GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.DEPLOY_GHCR_TOKEN }}
         with:
-          host: ${{ secrets.DEPLOY_SSH_HOST }}
-          username: ${{ secrets.DEPLOY_SSH_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_SSH_PORT }}
+          host: ${{ secrets.PI_HOST }}
+          username: ${{ secrets.PI_USER }}
+          key: ${{ secrets.PI_SSH_KEY }}
+          port: ${{ secrets.PI_PORT }}
           script_stop: true
           envs: IMAGE_NAME,DEPLOY_PATH,GHCR_USERNAME,GHCR_TOKEN
           script: |
