@@ -69,14 +69,24 @@ def build_execution_status_metadata(
         if isinstance(stage_data, dict) and stage_data.get("error")
     ]
 
-    stage_statuses = [
-        stage_data.get("status")
-        for stage_data in stages.values()
-        if isinstance(stage_data, dict)
+    core_stage_statuses = [
+        stages.get("strategy_execution", {}).get("status"),
+        stages.get("snapshot_save", {}).get("status"),
     ]
-    if any(status == "failure" for status in stage_statuses):
+    non_core_stage_statuses = [
+        stage_data.get("status")
+        for stage_name, stage_data in stages.items()
+        if stage_name not in {"strategy_execution", "snapshot_save"}
+        and isinstance(stage_data, dict)
+    ]
+
+    if any(status == "failure" for status in core_stage_statuses):
         overall_status = "failure"
-    elif any(status == "partial_failure" for status in stage_statuses):
+    elif any(status == "partial_failure" for status in core_stage_statuses):
+        overall_status = "partial_failure"
+    elif any(status == "failure" for status in non_core_stage_statuses):
+        overall_status = "partial_failure"
+    elif any(status == "partial_failure" for status in non_core_stage_statuses):
         overall_status = "partial_failure"
     else:
         overall_status = "success"

@@ -113,3 +113,22 @@ def test_build_execution_status_metadata_marks_partial_failure_for_mixed_results
     assert metadata["errors"] == [
         {"stage": "strategy_execution", "message": "1 of 2 strategies failed"}
     ]
+
+
+def test_build_execution_status_metadata_treats_non_core_failure_as_partial_failure() -> None:
+    metadata = build_execution_status_metadata(
+        {"HAA": {"SPY": 100.0}},
+        stage_overrides={
+            "snapshot_save": {"status": "success"},
+            "notification_reporting": {
+                "status": "failure",
+                "error": "notification boom",
+            },
+        },
+    )
+
+    assert metadata["status"] == "partial_failure"
+    assert metadata["stages"]["notification_reporting"]["status"] == "failure"
+    assert metadata["errors"] == [
+        {"stage": "notification_reporting", "message": "notification boom"}
+    ]

@@ -525,7 +525,7 @@ def test_main_saves_snapshot_even_when_diff_formatting_fails(
     latest_data = json.loads(latest_path.read_text(encoding="utf-8"))
     assert latest_data["strategies"]["HAA"] == {"SPY": 70.0, "QQQ": 30.0}
     assert latest_data["strategies"]["KAW"] == {"TIGER S&P500": 100.0}
-    assert latest_data["status"] == "failure"
+    assert latest_data["status"] == "partial_failure"
     assert latest_data["stages"]["notification_reporting"]["status"] == "failure"
     assert latest_data["errors"] == [
         {
