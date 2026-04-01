@@ -172,7 +172,10 @@ def test_main_succeeds_when_haa_and_kaw_succeed(monkeypatch, main_module):
 
     assert print_allocation_mock.call_count == 2
     run_selected_mock.assert_called_once_with(["HAA", "KAW"], "main")
-    assert info_message_mock.call_args_list[-1].args[0] == "성공률: 100.0% (2/2)"
+    assert info_message_mock.call_args_list[0].args[0].startswith(
+        "📊 자산 배분 리포트 | "
+    )
+    assert info_message_mock.call_args_list[1].args[0] == "✅ 성공률 100.0% (2/2)"
     performance_monitor.log_summary.assert_called_once()
 
 
@@ -188,7 +191,7 @@ def test_main_continues_when_haa_fails_and_kaw_succeeds(monkeypatch, main_module
     )
 
     assert print_allocation_mock.call_count == 1
-    assert info_message_mock.call_args_list[-1].args[0] == "성공률: 50.0% (1/2)"
+    assert info_message_mock.call_args_list[1].args[0] == "✅ 성공률 50.0% (1/2)"
     performance_monitor.log_summary.assert_called_once()
 
 
@@ -204,7 +207,7 @@ def test_main_continues_when_haa_succeeds_and_kaw_fails(monkeypatch, main_module
     )
 
     assert print_allocation_mock.call_count == 1
-    assert info_message_mock.call_args_list[-1].args[0] == "성공률: 50.0% (1/2)"
+    assert info_message_mock.call_args_list[1].args[0] == "✅ 성공률 50.0% (1/2)"
     performance_monitor.log_summary.assert_called_once()
 
 
@@ -239,7 +242,7 @@ def test_main_exits_when_all_strategies_fail(
         main_module.main()
 
     assert exc.value.code == 1
-    assert info_message_mock.call_args_list[-1].args[0] == "성공률: 0.0% (0/2)"
+    assert info_message_mock.call_args_list[1].args[0] == "✅ 성공률 0.0% (0/2)"
     performance_monitor.log_summary.assert_called_once()
     assert not latest_snapshot.exists()
     assert not list(history_snapshot_dir.glob("*.json"))
@@ -399,11 +402,10 @@ def test_main_reports_compact_diff_in_info_messages(
     compact_messages = [
         message
         for message in emitted_messages
-        if message.startswith("Scheduled diff:")
+        if message.startswith("🔄 변경 사항")
     ]
     assert len(compact_messages) == 1
-    assert "1 strategies changed" in compact_messages[0]
-    assert "2 allocation entries changed" in compact_messages[0]
+    assert "1개 전략 변경 / 2개 항목 변경" in compact_messages[0]
 
 
 def test_main_skips_compact_diff_message_when_no_changes(
@@ -534,3 +536,72 @@ def test_main_saves_snapshot_even_when_diff_formatting_fails(
         }
     ]
     assert len(list(history_dir.glob("*.json"))) == 1
+
+
+def test_print_asset_allocation_emits_grouped_strategy_block(monkeypatch, main_module):
+    """Strategy allocation message should be grouped into one readable block."""
+    info_message_mock = Mock()
+    monkeypatch.setattr(main_module, "print_info_message", info_message_mock)
+
+    main_module.print_asset_allocation(
+        {"SPY": 100.0, "QQQ": 50.0},
+        {"SPY": "S&P 500", "QQQ": "NASDAQ 100"},
+        2,
+        "[HAA]",
+    )
+
+    info_message_mock.assert_called_once_with(
+        "HAA\n- S&P 500 50.00%\n- NASDAQ 100 25.00%"
+    )
+
+
+def test_format_compact_diff_for_telegram_renders_separate_section(main_module):
+    compact_summary = (
+        "Scheduled diff: 1 strategies changed, 2 allocation entries changed\n"
+        "- [~] KAW: KOSEF 200TR -15.00%, KOSEF 국고채10년 +15.00%"
+    )
+
+    rendered = main_module.format_compact_diff_for_telegram(compact_summary)
+
+    assert rendered.startswith("🔄 변경 사항\n1개 전략 변경 / 2개 항목 변경")
+    assert "- KAW: KOSEF 200TR -15.00%, KOSEF 국고채10년 +15.00%" in rendered
+
+
+def test_format_compact_diff_for_telegram_no_diff_case_is_clean(main_module):
+    rendered = main_module.format_compact_diff_for_telegram("")
+    assert rendered == "🔄 변경 사항\n변경 내용 없음"
+
+
+def test_main_emits_success_line_immediately_after_header(monkeypatch, main_module):
+    info_message_mock, _, _, _ = _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 50.0},
+        kaw_result={"TIGER S&P500": 50.0},
+    )
+
+    emitted_messages = [call.args[0] for call in info_message_mock.call_args_list]
+    assert emitted_messages[0].startswith("📊 자산 배분 리포트 | ")
+    assert emitted_messages[1] == "✅ 성공률 100.0% (2/2)"
+
+
+def test_format_compact_weekday_returns_short_name(main_module):
+    assert (
+        main_module.format_compact_weekday(datetime.date(2026, 1, 15)) == "Thu"
+    )
+
+
+def test_format_compact_diff_for_telegram_localizes_common_fallbacks(main_module):
+    compact_summary = (
+        "Scheduled diff: 3 strategies changed, 5 allocation entries changed\n"
+        "- [~] HAA: result changed\n"
+        "- [~] KAW: allocation changed\n"
+        "- ... and 1 more strategy changes"
+    )
+
+    rendered = main_module.format_compact_diff_for_telegram(compact_summary)
+
+    assert "3개 전략 변경 / 5개 항목 변경" in rendered
+    assert "- HAA: 결과 변경" in rendered
+    assert "- KAW: 비중 변경" in rendered
+    assert "- ... 외 1개 전략 변경" in rendered

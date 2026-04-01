@@ -112,11 +112,8 @@ def test_main_scheduled_smoke_success_offline(monkeypatch, main_module):
     main_module.run_selected_strategies.assert_called_once_with(["HAA", "KAW"], "main")
 
     emitted_messages = [call.args[0] for call in info_message_mock.call_args_list]
-    assert "자산 배분 리포트" in emitted_messages
-    date_message = next(msg for msg in emitted_messages if msg.startswith("2026년 01월 15일"))
-    assert date_message.startswith("2026년 01월 15일 (")
-    assert date_message.endswith(")")
-    assert emitted_messages[-1] == "성공률: 100.0% (2/2)"
+    assert emitted_messages[0] == "📊 자산 배분 리포트 | 2026-01-15 (Thu)"
+    assert emitted_messages[1] == "✅ 성공률 100.0% (2/2)"
 
     assert allocation_mock.call_count == 2
     assert allocation_mock.call_args_list[0].args[3] == "[HAA]"

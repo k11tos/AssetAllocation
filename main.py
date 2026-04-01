@@ -5,7 +5,9 @@ Get portfolio with original dual momentum, VAA and LAA
 
 import json
 import os
+import re
 import sys
+from datetime import date
 from typing import Dict, List, Optional
 
 from config import STRATEGY_CONFIG, validate_config
@@ -38,6 +40,16 @@ LOGGER = LoggingConfig.get_logger(__name__)
 SCHEDULED_OUTPUT_DIR = "outputs"
 SCHEDULED_LATEST_RESULT_PATH = os.path.join(SCHEDULED_OUTPUT_DIR, "latest.json")
 SCHEDULED_HISTORY_DIR = os.path.join(SCHEDULED_OUTPUT_DIR, "history")
+
+_COMPACT_WEEKDAY = {
+    0: "Mon",
+    1: "Tue",
+    2: "Wed",
+    3: "Thu",
+    4: "Fri",
+    5: "Sat",
+    6: "Sun",
+}
 
 
 def load_tickers(file_path: Optional[str] = None) -> List[str]:
@@ -166,47 +178,41 @@ def main() -> None:
         tickers = load_tickers()
         etf_descriptions = {ticker: ticker for ticker in tickers}
 
-        # 현재 날짜 출력
         current_date = get_execution_now().date()
-        formatted_date = current_date.strftime("%Y년 %m월 %d일")
-        weekday = current_date.strftime("%A")
-
-        # 헤더 메시지를 개별 메시지로 분할
-        print_info_message("자산 배분 리포트")
-        print_info_message(f"{formatted_date} ({weekday})")
         LOGGER.info("📅 Processing date: %s", current_date)
 
         strategy_results = run_selected_strategies(["HAA", "KAW"], "main")
 
-        # HAA 전략 실행
+        # 실행 결과 요약
         haa_result = strategy_results["HAA"]
+        kaw_result = strategy_results["KAW"]
+        successful_strategies = int(bool(haa_result)) + int(bool(kaw_result))
+        success_rate = (successful_strategies / total_number_of_strategy) * 100
+
+        print_info_message(
+            "📊 자산 배분 리포트 | "
+            f"{current_date.isoformat()} ({format_compact_weekday(current_date)})"
+        )
+        print_info_message(
+            f"✅ 성공률 {success_rate:.1f}% "
+            f"({successful_strategies}/{total_number_of_strategy})"
+        )
+
+        # HAA 전략 실행
         if haa_result:
             print_asset_allocation(
                 haa_result, etf_descriptions, total_number_of_strategy, "[HAA]"
             )
-            successful_strategies += 1
         else:
             LOGGER.warning("⚠️ HAA strategy failed - skipping output")
 
         # 한국형 올웨더 전략 (항상 실행)
-        kaw_result = strategy_results["KAW"]
         if kaw_result:
             print_asset_allocation(
                 kaw_result, None, total_number_of_strategy, "[KAW]"
             )
-            successful_strategies += 1
         else:
             LOGGER.warning("⚠️ KAW strategy failed - skipping output")
-
-        # 실행 결과 요약
-        success_rate = (successful_strategies / total_number_of_strategy) * 100
-
-        # 요약 메시지 단순화
-        success_message = (
-            f"성공률: {success_rate:.1f}% "
-            f"({successful_strategies}/{total_number_of_strategy})"
-        )
-        print_info_message(success_message)
 
         LOGGER.info(
             "✅ Asset allocation process completed. "
@@ -271,7 +277,9 @@ def persist_scheduled_execution_result(
                 previous_result_data, strategy_results
             )
             if compact_summary:
-                print_info_message(compact_summary)
+                print_info_message(
+                    format_compact_diff_for_telegram(compact_summary)
+                )
             stage_overrides["notification_reporting"] = {"status": "success"}
         except Exception as e:
             stage_overrides["notification_reporting"] = {
@@ -321,59 +329,60 @@ def print_asset_allocation(
     :return: None
     """
 
-    # 메시지 헤더 구성 (간단한 포맷)
     strategy_display_name = strategy_name.replace("[", "").replace("]", "")
-    header = f"{strategy_display_name} Strategy\n"
-
-    # 자산 배분 정보 구성
-    allocations = []
-    total_allocation = 0
+    allocations = [strategy_display_name]
 
     for key, value in asset_allocation.items():
         percentage = round(value / total_number_of_strategy, 2)
-        total_allocation += percentage
-
-        # 자산별 이모지 매핑
-        asset_emojis = {
-            "SPY": "🇺🇸",
-            "IWM": "🇺🇸",
-            "IEFA": "🌍",
-            "IEMG": "🌏",
-            "TLT": "📊",
-            "IEF": "📊",
-            "PDBC": "🛢️",
-            "VNQ": "🏢",
-            "AGG": "📈",
-            "LQD": "💼",
-            "SHY": "💰",
-            "CASH": "💵",
-            "TIGER S&P500": "🐅",
-            "KOSEF 200TR": "🇰🇷",
-            "KODEX 골드선물(H)": "🥇",
-            "TIGER 미국채 10년 선물": "📊",
-            "KOSEF 국고채 10년": "🏛️",
-            "QQQ": "🚀",
-            "GLD": "🥇",
-        }
-
-        asset_emoji = asset_emojis.get(key, "📈")
         display_name = (
             etf_descriptions.get(key, key) if etf_descriptions else key
         )
+        allocations.append(f"- {display_name} {percentage:.2f}%")
 
-        # 단순한 포맷 - 진행률 바 제거
-        allocation_text = (
-            f"{asset_emoji} {display_name}: {percentage:>6.2f}%\n"
+    print_info_message("\n".join(allocations))
+
+
+def format_compact_diff_for_telegram(compact_summary: str) -> str:
+    """Convert compact diff summary into a mobile-friendly Telegram section."""
+    lines = [line.strip() for line in compact_summary.splitlines() if line.strip()]
+    if not lines:
+        return "🔄 변경 사항\n변경 내용 없음"
+
+    summary_line = "상세 변경 내역 확인"
+    match = re.match(
+        r"^Scheduled diff:\s*(\d+)\s+strategies changed,\s*(\d+)\s+allocation entries changed$",
+        lines[0],
+    )
+    if match:
+        changed_strategies, changed_entries = match.groups()
+        summary_line = (
+            f"{changed_strategies}개 전략 변경 / {changed_entries}개 항목 변경"
         )
-        allocations.append(allocation_text)
 
-    # 텔레그램 줄바꿈 문제 해결: 모든 요소를 개별 메시지로 전송
-    print_info_message(header.strip())
+    detail_lines = []
+    for line in lines[1:]:
+        cleaned = re.sub(r"^-\s*\[[+\-~]\]\s*", "- ", line)
+        cleaned = cleaned.replace("strategy added", "전략 추가")
+        cleaned = cleaned.replace("strategy removed", "전략 제거")
+        cleaned = cleaned.replace("result changed", "결과 변경")
+        cleaned = cleaned.replace("allocation changed", "비중 변경")
+        cleaned = re.sub(
+            r"\.\.\. and (\d+) more strategy changes",
+            r"... 외 \1개 전략 변경",
+            cleaned,
+        )
+        detail_lines.append(cleaned)
 
-    for allocation in allocations:
-        clean_allocation = allocation.strip()
-        if clean_allocation:
-            print_info_message(clean_allocation)
+    section_lines = ["🔄 변경 사항", summary_line]
+    if detail_lines:
+        section_lines.append("")
+        section_lines.extend(detail_lines)
+    return "\n".join(section_lines)
+
+
+def format_compact_weekday(target_date: date) -> str:
+    """Return compact weekday text for mobile-friendly report headers."""
+    return _COMPACT_WEEKDAY[target_date.weekday()]
 
 
 if __name__ == "__main__":
