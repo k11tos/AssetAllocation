@@ -321,6 +321,9 @@ def test_save_json_writes_execution_results(
 
     assert "timestamp" in exported_payload
     assert exported_payload["strategies"] == {"HAA": {"SPY": 100.0}}
+    assert exported_payload["status"] == "success"
+    assert exported_payload["stages"]["snapshot_save"]["status"] == "success"
+    assert exported_payload["errors"] == []
 
 
 def test_save_json_not_used_by_default(

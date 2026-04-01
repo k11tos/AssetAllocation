@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 import execution_output
 from execution_output import (
+    build_execution_status_metadata,
     build_execution_output_data,
     format_compact_execution_diff_summary,
 )
@@ -96,3 +97,19 @@ def test_build_execution_output_data_uses_timezone_aware_timestamp(monkeypatch) 
     payload = build_execution_output_data({"HAA": {"SPY": 100.0}})
 
     assert payload["timestamp"] == "2026-04-01T08:30:00+09:00"
+    assert payload["status"] == "success"
+    assert payload["stages"]["strategy_execution"]["status"] == "success"
+    assert payload["stages"]["snapshot_save"]["status"] == "skipped"
+    assert payload["errors"] == []
+
+
+def test_build_execution_status_metadata_marks_partial_failure_for_mixed_results() -> None:
+    metadata = build_execution_status_metadata(
+        {"HAA": {"SPY": 100.0}, "KAW": None}
+    )
+
+    assert metadata["status"] == "partial_failure"
+    assert metadata["stages"]["strategy_execution"]["status"] == "partial_failure"
+    assert metadata["errors"] == [
+        {"stage": "strategy_execution", "message": "1 of 2 strategies failed"}
+    ]
