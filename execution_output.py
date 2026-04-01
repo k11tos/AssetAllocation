@@ -17,15 +17,100 @@ def get_execution_now() -> datetime:
 
 def build_execution_output_data(results: Dict[str, Any]) -> Dict[str, Any]:
     """Build the standard JSON payload for strategy execution results."""
+    metadata = build_execution_status_metadata(results)
     return {
         "timestamp": get_execution_now().isoformat(),
         "strategies": results,
+        "status": metadata["status"],
+        "stages": metadata["stages"],
+        "errors": metadata["errors"],
     }
 
 
-def save_execution_output_json(results: Dict[str, Any], file_path: str) -> None:
+def build_execution_status_metadata(
+    results: Dict[str, Any],
+    *,
+    stage_overrides: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Build structured execution status metadata for persisted snapshots."""
+    stage_overrides = stage_overrides or {}
+    strategy_values = list(results.values())
+    successful_count = sum(value is not None for value in strategy_values)
+
+    if not strategy_values or successful_count == 0:
+        strategy_status = "failure"
+        strategy_error = "No strategy result was produced"
+    elif successful_count == len(strategy_values):
+        strategy_status = "success"
+        strategy_error = None
+    else:
+        strategy_status = "partial_failure"
+        strategy_error = (
+            f"{len(strategy_values) - successful_count} of "
+            f"{len(strategy_values)} strategies failed"
+        )
+
+    stages: Dict[str, Dict[str, Any]] = {
+        "strategy_execution": {"status": strategy_status},
+        "snapshot_save": {"status": "skipped"},
+        "notification_reporting": {"status": "skipped"},
+    }
+    if strategy_error:
+        stages["strategy_execution"]["error"] = strategy_error
+
+    for stage_name, stage_data in stage_overrides.items():
+        current = stages.get(stage_name, {})
+        current.update(stage_data)
+        stages[stage_name] = current
+
+    errors = [
+        {"stage": stage_name, "message": stage_data["error"]}
+        for stage_name, stage_data in stages.items()
+        if isinstance(stage_data, dict) and stage_data.get("error")
+    ]
+
+    core_stage_statuses = [
+        stages.get("strategy_execution", {}).get("status"),
+        stages.get("snapshot_save", {}).get("status"),
+    ]
+    non_core_stage_statuses = [
+        stage_data.get("status")
+        for stage_name, stage_data in stages.items()
+        if stage_name not in {"strategy_execution", "snapshot_save"}
+        and isinstance(stage_data, dict)
+    ]
+
+    if any(status == "failure" for status in core_stage_statuses):
+        overall_status = "failure"
+    elif any(status == "partial_failure" for status in core_stage_statuses):
+        overall_status = "partial_failure"
+    elif any(status == "failure" for status in non_core_stage_statuses):
+        overall_status = "partial_failure"
+    elif any(status == "partial_failure" for status in non_core_stage_statuses):
+        overall_status = "partial_failure"
+    else:
+        overall_status = "success"
+
+    return {"status": overall_status, "stages": stages, "errors": errors}
+
+
+def save_execution_output_json(
+    results: Dict[str, Any],
+    file_path: str,
+    stage_overrides: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> None:
     """Save strategy execution results to a JSON file."""
+    effective_stage_overrides: Dict[str, Dict[str, Any]] = {
+        "snapshot_save": {"status": "success"}
+    }
+    if stage_overrides:
+        effective_stage_overrides.update(stage_overrides)
+
     output_data = build_execution_output_data(results)
+    metadata = build_execution_status_metadata(
+        results, stage_overrides=effective_stage_overrides
+    )
+    output_data.update(metadata)
     output_dir = os.path.dirname(file_path)
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)

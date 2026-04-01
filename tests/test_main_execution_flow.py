@@ -270,6 +270,14 @@ def test_main_saves_latest_and_history_results(
     latest_data = json.loads(latest_path.read_text(encoding="utf-8"))
     assert latest_data["strategies"]["HAA"] == {"SPY": 50.0}
     assert latest_data["strategies"]["KAW"] == {"TIGER S&P500": 50.0}
+    assert latest_data["status"] == "success"
+    assert latest_data["stages"]["strategy_execution"]["status"] == "success"
+    assert latest_data["stages"]["snapshot_save"]["status"] == "success"
+    assert latest_data["stages"]["notification_reporting"]["status"] in {
+        "success",
+        "skipped",
+    }
+    assert latest_data["errors"] == []
 
     history_files = list(history_dir.glob("*.json"))
     assert len(history_files) == 1
@@ -517,4 +525,12 @@ def test_main_saves_snapshot_even_when_diff_formatting_fails(
     latest_data = json.loads(latest_path.read_text(encoding="utf-8"))
     assert latest_data["strategies"]["HAA"] == {"SPY": 70.0, "QQQ": 30.0}
     assert latest_data["strategies"]["KAW"] == {"TIGER S&P500": 100.0}
+    assert latest_data["status"] == "partial_failure"
+    assert latest_data["stages"]["notification_reporting"]["status"] == "failure"
+    assert latest_data["errors"] == [
+        {
+            "stage": "notification_reporting",
+            "message": "diff boom",
+        }
+    ]
     assert len(list(history_dir.glob("*.json"))) == 1

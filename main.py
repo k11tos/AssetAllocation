@@ -237,6 +237,13 @@ def persist_scheduled_execution_result(
     strategy_results: Dict[str, Optional[Dict[str, float]]],
 ) -> None:
     """Save scheduled execution results and compare with previous snapshot."""
+    stage_overrides = {
+        "snapshot_save": {"status": "success"},
+        "notification_reporting": {
+            "status": "skipped",
+            "detail": "No previous snapshot available for diff reporting",
+        },
+    }
     previous_result_data = None
     try:
         previous_result_data = load_execution_output_json(
@@ -265,7 +272,12 @@ def persist_scheduled_execution_result(
             )
             if compact_summary:
                 print_info_message(compact_summary)
+            stage_overrides["notification_reporting"] = {"status": "success"}
         except Exception as e:
+            stage_overrides["notification_reporting"] = {
+                "status": "failure",
+                "error": str(e),
+            }
             LOGGER.warning(
                 "⚠️ Failed to format scheduled execution diff summary: %s",
                 e,
@@ -277,8 +289,14 @@ def persist_scheduled_execution_result(
     )
 
     try:
-        save_execution_output_json(strategy_results, history_file_path)
-        save_execution_output_json(strategy_results, SCHEDULED_LATEST_RESULT_PATH)
+        save_execution_output_json(
+            strategy_results, history_file_path, stage_overrides=stage_overrides
+        )
+        save_execution_output_json(
+            strategy_results,
+            SCHEDULED_LATEST_RESULT_PATH,
+            stage_overrides=stage_overrides,
+        )
         LOGGER.info(
             "💾 Scheduled execution results saved to %s and %s",
             SCHEDULED_LATEST_RESULT_PATH,
