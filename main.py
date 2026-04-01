@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+from datetime import date
 from typing import Dict, List, Optional
 
 from config import STRATEGY_CONFIG, validate_config
@@ -39,6 +40,16 @@ LOGGER = LoggingConfig.get_logger(__name__)
 SCHEDULED_OUTPUT_DIR = "outputs"
 SCHEDULED_LATEST_RESULT_PATH = os.path.join(SCHEDULED_OUTPUT_DIR, "latest.json")
 SCHEDULED_HISTORY_DIR = os.path.join(SCHEDULED_OUTPUT_DIR, "history")
+
+_COMPACT_WEEKDAY = {
+    0: "Mon",
+    1: "Tue",
+    2: "Wed",
+    3: "Thu",
+    4: "Fri",
+    5: "Sat",
+    6: "Sun",
+}
 
 
 def load_tickers(file_path: Optional[str] = None) -> List[str]:
@@ -168,42 +179,40 @@ def main() -> None:
         etf_descriptions = {ticker: ticker for ticker in tickers}
 
         current_date = get_execution_now().date()
-        weekday = current_date.strftime("%A")
-        print_info_message(
-            f"📊 자산 배분 리포트 | {current_date.isoformat()} ({weekday})"
-        )
         LOGGER.info("📅 Processing date: %s", current_date)
 
         strategy_results = run_selected_strategies(["HAA", "KAW"], "main")
 
-        # HAA 전략 실행
+        # 실행 결과 요약
         haa_result = strategy_results["HAA"]
+        kaw_result = strategy_results["KAW"]
+        successful_strategies = int(bool(haa_result)) + int(bool(kaw_result))
+        success_rate = (successful_strategies / total_number_of_strategy) * 100
+
+        print_info_message(
+            "📊 자산 배분 리포트 | "
+            f"{current_date.isoformat()} ({format_compact_weekday(current_date)})"
+        )
+        print_info_message(
+            f"✅ 성공률 {success_rate:.1f}% "
+            f"({successful_strategies}/{total_number_of_strategy})"
+        )
+
+        # HAA 전략 실행
         if haa_result:
             print_asset_allocation(
                 haa_result, etf_descriptions, total_number_of_strategy, "[HAA]"
             )
-            successful_strategies += 1
         else:
             LOGGER.warning("⚠️ HAA strategy failed - skipping output")
 
         # 한국형 올웨더 전략 (항상 실행)
-        kaw_result = strategy_results["KAW"]
         if kaw_result:
             print_asset_allocation(
                 kaw_result, None, total_number_of_strategy, "[KAW]"
             )
-            successful_strategies += 1
         else:
             LOGGER.warning("⚠️ KAW strategy failed - skipping output")
-
-        # 실행 결과 요약
-        success_rate = (successful_strategies / total_number_of_strategy) * 100
-
-        success_message = (
-            f"✅ 성공률 {success_rate:.1f}% "
-            f"({successful_strategies}/{total_number_of_strategy})"
-        )
-        print_info_message(success_message)
 
         LOGGER.info(
             "✅ Asset allocation process completed. "
@@ -355,6 +364,13 @@ def format_compact_diff_for_telegram(compact_summary: str) -> str:
         cleaned = re.sub(r"^-\s*\[[+\-~]\]\s*", "- ", line)
         cleaned = cleaned.replace("strategy added", "전략 추가")
         cleaned = cleaned.replace("strategy removed", "전략 제거")
+        cleaned = cleaned.replace("result changed", "결과 변경")
+        cleaned = cleaned.replace("allocation changed", "비중 변경")
+        cleaned = re.sub(
+            r"\.\.\. and (\d+) more strategy changes",
+            r"... 외 \1개 전략 변경",
+            cleaned,
+        )
         detail_lines.append(cleaned)
 
     section_lines = ["🔄 변경 사항", summary_line]
@@ -362,6 +378,11 @@ def format_compact_diff_for_telegram(compact_summary: str) -> str:
         section_lines.append("")
         section_lines.extend(detail_lines)
     return "\n".join(section_lines)
+
+
+def format_compact_weekday(target_date: date) -> str:
+    """Return compact weekday text for mobile-friendly report headers."""
+    return _COMPACT_WEEKDAY[target_date.weekday()]
 
 
 if __name__ == "__main__":
