@@ -44,6 +44,8 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ env.IMAGE_NAME }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Deploy updated image on Raspberry Pi
         uses: appleboy/ssh-action@v1.2.0
