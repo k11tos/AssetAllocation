@@ -5,6 +5,7 @@ Get portfolio with original dual momentum, VAA and LAA
 
 import json
 import os
+import re
 import sys
 from typing import Dict, List, Optional
 
@@ -166,14 +167,11 @@ def main() -> None:
         tickers = load_tickers()
         etf_descriptions = {ticker: ticker for ticker in tickers}
 
-        # 현재 날짜 출력
         current_date = get_execution_now().date()
-        formatted_date = current_date.strftime("%Y년 %m월 %d일")
         weekday = current_date.strftime("%A")
-
-        # 헤더 메시지를 개별 메시지로 분할
-        print_info_message("자산 배분 리포트")
-        print_info_message(f"{formatted_date} ({weekday})")
+        print_info_message(
+            f"📊 자산 배분 리포트 | {current_date.isoformat()} ({weekday})"
+        )
         LOGGER.info("📅 Processing date: %s", current_date)
 
         strategy_results = run_selected_strategies(["HAA", "KAW"], "main")
@@ -201,9 +199,8 @@ def main() -> None:
         # 실행 결과 요약
         success_rate = (successful_strategies / total_number_of_strategy) * 100
 
-        # 요약 메시지 단순화
         success_message = (
-            f"성공률: {success_rate:.1f}% "
+            f"✅ 성공률 {success_rate:.1f}% "
             f"({successful_strategies}/{total_number_of_strategy})"
         )
         print_info_message(success_message)
@@ -271,7 +268,9 @@ def persist_scheduled_execution_result(
                 previous_result_data, strategy_results
             )
             if compact_summary:
-                print_info_message(compact_summary)
+                print_info_message(
+                    format_compact_diff_for_telegram(compact_summary)
+                )
             stage_overrides["notification_reporting"] = {"status": "success"}
         except Exception as e:
             stage_overrides["notification_reporting"] = {
@@ -321,59 +320,48 @@ def print_asset_allocation(
     :return: None
     """
 
-    # 메시지 헤더 구성 (간단한 포맷)
     strategy_display_name = strategy_name.replace("[", "").replace("]", "")
-    header = f"{strategy_display_name} Strategy\n"
-
-    # 자산 배분 정보 구성
-    allocations = []
-    total_allocation = 0
+    allocations = [strategy_display_name]
 
     for key, value in asset_allocation.items():
         percentage = round(value / total_number_of_strategy, 2)
-        total_allocation += percentage
-
-        # 자산별 이모지 매핑
-        asset_emojis = {
-            "SPY": "🇺🇸",
-            "IWM": "🇺🇸",
-            "IEFA": "🌍",
-            "IEMG": "🌏",
-            "TLT": "📊",
-            "IEF": "📊",
-            "PDBC": "🛢️",
-            "VNQ": "🏢",
-            "AGG": "📈",
-            "LQD": "💼",
-            "SHY": "💰",
-            "CASH": "💵",
-            "TIGER S&P500": "🐅",
-            "KOSEF 200TR": "🇰🇷",
-            "KODEX 골드선물(H)": "🥇",
-            "TIGER 미국채 10년 선물": "📊",
-            "KOSEF 국고채 10년": "🏛️",
-            "QQQ": "🚀",
-            "GLD": "🥇",
-        }
-
-        asset_emoji = asset_emojis.get(key, "📈")
         display_name = (
             etf_descriptions.get(key, key) if etf_descriptions else key
         )
+        allocations.append(f"- {display_name} {percentage:.2f}%")
 
-        # 단순한 포맷 - 진행률 바 제거
-        allocation_text = (
-            f"{asset_emoji} {display_name}: {percentage:>6.2f}%\n"
+    print_info_message("\n".join(allocations))
+
+
+def format_compact_diff_for_telegram(compact_summary: str) -> str:
+    """Convert compact diff summary into a mobile-friendly Telegram section."""
+    lines = [line.strip() for line in compact_summary.splitlines() if line.strip()]
+    if not lines:
+        return "🔄 변경 사항\n변경 내용 없음"
+
+    summary_line = "상세 변경 내역 확인"
+    match = re.match(
+        r"^Scheduled diff:\s*(\d+)\s+strategies changed,\s*(\d+)\s+allocation entries changed$",
+        lines[0],
+    )
+    if match:
+        changed_strategies, changed_entries = match.groups()
+        summary_line = (
+            f"{changed_strategies}개 전략 변경 / {changed_entries}개 항목 변경"
         )
-        allocations.append(allocation_text)
 
-    # 텔레그램 줄바꿈 문제 해결: 모든 요소를 개별 메시지로 전송
-    print_info_message(header.strip())
+    detail_lines = []
+    for line in lines[1:]:
+        cleaned = re.sub(r"^-\s*\[[+\-~]\]\s*", "- ", line)
+        cleaned = cleaned.replace("strategy added", "전략 추가")
+        cleaned = cleaned.replace("strategy removed", "전략 제거")
+        detail_lines.append(cleaned)
 
-    for allocation in allocations:
-        clean_allocation = allocation.strip()
-        if clean_allocation:
-            print_info_message(clean_allocation)
+    section_lines = ["🔄 변경 사항", summary_line]
+    if detail_lines:
+        section_lines.append("")
+        section_lines.extend(detail_lines)
+    return "\n".join(section_lines)
 
 
 if __name__ == "__main__":
