@@ -60,17 +60,25 @@ class HAAStrategy(BaseStrategy):
         # TIP이 양수인 경우 상위 4개 공격자 자산을 선정하고,
         # 각 슬리브를 개별적으로 절대 모멘텀 필터링한다.
         if tip_momentum > HAA_CONFIG.TIP_THRESHOLD and attacker_dict:
-            attacker_profit_top = sorted(
+            ranked_offensive_assets = sorted(
                 attacker_dict.items(), key=lambda x: x[1], reverse=True
-            )[: HAA_CONFIG.TOP_ATTACKERS_COUNT]
-            ranked_offensive_assets = [ticker for ticker, _ in attacker_profit_top]
+            )
+            attacker_profit_top = ranked_offensive_assets[
+                : HAA_CONFIG.TOP_ATTACKERS_COUNT
+            ]
             self.logger.debug(
-                "HAA mode=OFFENSIVE (TIP %.6f > %.6f); ranked offensive assets=%s",
+                "HAA mode=OFFENSIVE (TIP %.6f > %.6f)",
                 tip_momentum,
                 HAA_CONFIG.TIP_THRESHOLD,
-                ranked_offensive_assets,
             )
-            self.logger.debug("HAA selected top %d: %s", len(attacker_profit_top), attacker_profit_top)
+            self.logger.debug(
+                "HAA ranked offensive assets (full): %s", ranked_offensive_assets
+            )
+            self.logger.debug(
+                "HAA selected top %d: %s",
+                len(attacker_profit_top),
+                attacker_profit_top,
+            )
 
             num_selected = len(attacker_profit_top)
             if num_selected > 0:

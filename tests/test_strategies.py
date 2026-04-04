@@ -174,6 +174,7 @@ class TestHAAStrategy(unittest.TestCase):
         self.assertIn("HAA momentum snapshot", log_output)
         self.assertIn("HAA offensive momentum table", log_output)
         self.assertIn("HAA mode=OFFENSIVE", log_output)
+        self.assertIn("HAA ranked offensive assets (full)", log_output)
         self.assertIn("HAA selected top", log_output)
         self.assertIn("HAA replacing selected asset", log_output)
         self.assertIn("HAA replacement defensive asset", log_output)
