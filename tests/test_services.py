@@ -424,6 +424,20 @@ class TestCommunicationService(unittest.TestCase):
         self.assertEqual(mock_send.call_count, 2)
 
     @patch("services.communication_service.telegram.Bot")
+    def test_send_messages_fail_fast_on_first_failure(self, mock_bot_class):
+        """첫 번째 실패 시 후속 메시지 전송을 중단해야 함"""
+        mock_bot_class.return_value = Mock()
+        service = CommunicationService()
+
+        with patch.object(
+            service, "send_message", side_effect=[False, True]
+        ) as mock_send:
+            result = service.send_messages(["line1", "line2"])
+
+        self.assertFalse(result)
+        self.assertEqual(mock_send.call_count, 1)
+
+    @patch("services.communication_service.telegram.Bot")
     def test_send_messages_rejects_string_payload(self, mock_bot_class):
         """문자열 단일 payload는 목록으로 간주하지 않아야 함"""
         mock_bot_class.return_value = Mock()
