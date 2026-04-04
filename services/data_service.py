@@ -7,6 +7,7 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 import talib as ta
 import yfinance as yf
 from fredapi import Fred
@@ -88,6 +89,55 @@ class DataService:
                 "ERROR",
             )
             raise
+
+    def _extract_month_end_prices(self, price_series: pd.Series) -> pd.Series:
+        """일별 가격 시계열에서 월말(해당 월의 마지막 거래일) 종가를 추출합니다."""
+        if price_series.empty:
+            return price_series
+
+        if not isinstance(price_series.index, pd.DatetimeIndex):
+            return pd.Series(dtype=np.float64)
+
+        month_end_prices = price_series.groupby(
+            price_series.index.to_period("M")
+        ).last()
+        month_end_prices.index = month_end_prices.index.to_timestamp("M")
+
+        latest_date = price_series.index[-1]
+        latest_business_month_end = latest_date + pd.offsets.BMonthEnd(0)
+
+        # 월말 리밸런싱 시점을 맞추기 위해, 아직 월말이 아닌 현재 월 데이터는 제외
+        if (
+            latest_date.normalize() != latest_business_month_end.normalize()
+            and len(month_end_prices) > 1
+        ):
+            month_end_prices = month_end_prices.iloc[:-1]
+
+        return month_end_prices
+
+    def _calculate_month_end_returns(
+        self, price_series: pd.Series, lookback_months: Tuple[int, ...] = (1, 3, 6, 12)
+    ) -> Dict[int, float]:
+        """월말 가격 시계열 기반으로 지정 개월 수 수익률을 계산합니다."""
+        month_end_prices = self._extract_month_end_prices(price_series)
+        returns: Dict[int, float] = {}
+
+        if month_end_prices.empty:
+            return {months: 0.0 for months in lookback_months}
+
+        latest_price = month_end_prices.iloc[-1]
+        for months in lookback_months:
+            if len(month_end_prices) <= months:
+                returns[months] = 0.0
+                continue
+
+            past_price = month_end_prices.iloc[-(months + 1)]
+            if past_price == 0 or np.isnan(past_price) or np.isnan(latest_price):
+                returns[months] = 0.0
+            else:
+                returns[months] = (latest_price / past_price) - 1.0
+
+        return returns
 
     @monitor_performance("get_financial_data")
     def get_financial_data(
@@ -287,12 +337,15 @@ class DataService:
                 + profit_1month[ticker] * momentum_weights["1_month"]
             )
 
-            # HAA 단순 모멘텀(13612U): 1/3/6/12개월 수익률의 동일가중 평균
+            # HAA 단순 모멘텀(13612U): 월말 기준 1/3/6/12개월 수익률의 동일가중 평균
+            month_end_returns = self._calculate_month_end_returns(
+                daily_price[ticker]
+            )
             momentum_score_simple[ticker] = (
-                profit_12month[ticker]
-                + profit_6month[ticker]
-                + profit_3month[ticker]
-                + profit_1month[ticker]
+                month_end_returns[12]
+                + month_end_returns[6]
+                + month_end_returns[3]
+                + month_end_returns[1]
             ) / 4.0
 
             # 12개월 단순이동평균 계산 (ta-lib SMA 사용)
