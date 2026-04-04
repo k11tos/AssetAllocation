@@ -261,6 +261,24 @@ class TestDataService(unittest.TestCase):
         self.assertEqual(len(month_end_prices), 2)
         self.assertEqual(month_end_prices.index[-1], pd.Timestamp("2026-03-31"))
 
+    def test_extract_month_end_prices_keeps_holiday_shortened_final_trading_day(self):
+        """휴장으로 단축된 월 마지막 거래일 당일 실행 시 최신 월을 유지해야 함"""
+        import pandas as pd
+
+        prices = pd.Series(
+            [100.0, 110.0],
+            index=pd.to_datetime(["2021-11-30", "2021-12-30"]),
+        )
+
+        month_end_prices = self.data_service._extract_month_end_prices(
+            prices,
+            drop_incomplete_current_month=True,
+            as_of_date=pd.Timestamp("2021-12-30"),
+        )
+
+        self.assertEqual(len(month_end_prices), 2)
+        self.assertEqual(month_end_prices.index[-1], pd.Timestamp("2021-12-30"))
+
     def test_calculate_month_end_returns_keeps_holiday_shortened_latest_month(self):
         """휴장으로 마지막 거래일이 월말 이전이어도 최신 월을 드롭하지 않아야 함"""
         import pandas as pd

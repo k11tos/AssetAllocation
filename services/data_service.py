@@ -119,10 +119,13 @@ class DataService:
             )
             reference_date = reference_date.normalize()
             current_month = reference_date.to_period("M")
-            month_close_date = (reference_date + pd.offsets.MonthEnd(0)).normalize()
 
             latest_month = month_end_prices.index[-1].to_period("M")
-            if latest_month == current_month and reference_date < month_close_date:
+            latest_trading_day = month_end_prices.index[-1].normalize()
+            # 휴장으로 월의 마지막 거래일이 달력 월말보다 앞당겨질 수 있으므로,
+            # "달력 월말 전" 여부가 아니라 run 기준일이 최신 거래일을 이미 지났는지로
+            # 진행 중 월(부분 월) 여부를 판단한다.
+            if latest_month == current_month and reference_date > latest_trading_day:
                 month_end_prices = month_end_prices.iloc[:-1]
 
         return month_end_prices
