@@ -120,23 +120,34 @@ class KoreanAllWeatherConfig:
 class HAAConfig:
     """HAA (Hybrid Asset Allocation) 전략 설정"""
 
+    OFFENSIVE_TICKERS: Optional[List[str]] = None
+    DEFENSIVE_TICKERS: Optional[List[str]] = None
+    CANARY_TICKERS: Optional[List[str]] = None
     ATTACKER_TICKERS: Optional[List[str]] = None
     TIP_THRESHOLD: float = 0.0
     IEF_THRESHOLD: float = 0.0
     TOP_ATTACKERS_COUNT: int = 4
 
     def __post_init__(self):
-        if self.ATTACKER_TICKERS is None:
-            self.ATTACKER_TICKERS = [
+        if self.OFFENSIVE_TICKERS is None:
+            self.OFFENSIVE_TICKERS = [
                 "SPY",
                 "IWM",
                 "IEFA",
                 "IEMG",
-                "TLT",
-                "IEF",
-                "PDBC",
                 "VNQ",
+                "PDBC",
+                "IEF",
+                "TLT",
             ]
+        if self.DEFENSIVE_TICKERS is None:
+            self.DEFENSIVE_TICKERS = ["BIL", "IEF"]
+        if self.CANARY_TICKERS is None:
+            self.CANARY_TICKERS = ["TIP"]
+
+        # 하위 호환성: 기존 ATTACKER_TICKERS는 OFFENSIVE_TICKERS와 동일하게 유지
+        if self.ATTACKER_TICKERS is None:
+            self.ATTACKER_TICKERS = self.OFFENSIVE_TICKERS
 
 
 @dataclass

@@ -85,7 +85,7 @@ class TestHAAStrategy(unittest.TestCase):
         # IEF에 100% 배분되어야 함
         self.assertEqual(result, {"IEF": 100})
 
-    def test_calculate_allocation_cash(self):
+    def test_calculate_allocation_bil(self):
         """TIP과 IEF가 모두 음수인 경우 테스트"""
         data = {
             "momentum_score_simple": {
@@ -103,8 +103,8 @@ class TestHAAStrategy(unittest.TestCase):
 
         result = self.strategy.calculate_allocation(data)
 
-        # 현금에 100% 배분되어야 함
-        self.assertEqual(result, {"CASH": 100})
+        # BIL에 100% 배분되어야 함
+        self.assertEqual(result, {"BIL": 100})
 
     def test_validate_data(self):
         """데이터 유효성 검증 테스트"""
