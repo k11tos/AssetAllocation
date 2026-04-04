@@ -29,6 +29,7 @@ from portfolio import (
     get_hybrid_asset_allocation,
     get_korean_all_weather_allocation,
     print_info_message,
+    print_info_messages,
 )
 from strategy_runner import run_selected_strategies
 from utils.logging_config import LoggingConfig
@@ -221,18 +222,20 @@ def main() -> None:
         else:
             LOGGER.warning("⚠️ KAW strategy failed - skipping output")
 
-        print_info_message(
-            build_telegram_report_message(
-                current_date=current_date,
-                success_rate=success_rate,
-                successful_strategies=successful_strategies,
-                total_number_of_strategy=total_number_of_strategy,
-                strategy_sections=strategy_sections,
-                compact_diff_section=get_compact_diff_section_for_report(
-                    strategy_results
-                ),
-            )
+        report_messages = build_telegram_report_messages(
+            current_date=current_date,
+            success_rate=success_rate,
+            successful_strategies=successful_strategies,
+            total_number_of_strategy=total_number_of_strategy,
+            strategy_sections=strategy_sections,
+            compact_diff_section=get_compact_diff_section_for_report(
+                strategy_results
+            ),
         )
+        if len(report_messages) == 1:
+            print_info_message(report_messages[0])
+        else:
+            print_info_messages(report_messages)
 
         LOGGER.info(
             "✅ Asset allocation process completed. "
@@ -377,6 +380,29 @@ def build_telegram_report_message(
     if compact_diff_section:
         sections.append(compact_diff_section)
     return "\n\n".join(sections)
+
+
+def build_telegram_report_messages(
+    current_date: date,
+    success_rate: float,
+    successful_strategies: int,
+    total_number_of_strategy: int,
+    strategy_sections: List[str],
+    compact_diff_section: Optional[str] = None,
+) -> List[str]:
+    """Build ordered Telegram messages for safe multi-message report delivery."""
+    header_message = (
+        "📊 자산 배분 리포트 "
+        f"{current_date.isoformat()} ({format_compact_weekday(current_date)})\n"
+        f"✅ 성공률 {success_rate:.1f}% "
+        f"({successful_strategies}/{total_number_of_strategy})"
+    )
+
+    messages = [header_message]
+    messages.extend(section for section in strategy_sections if section)
+    if compact_diff_section:
+        messages.append(compact_diff_section)
+    return messages
 
 
 def get_compact_diff_section_for_report(
