@@ -64,6 +64,92 @@ class TestHAAStrategy(unittest.TestCase):
         self.assertEqual(len(result), 4)
         self.assertTrue(all(weight == 25.0 for weight in result.values()))
 
+    def test_calculate_allocation_tip_positive_all_selected_positive(self):
+        """TIP 양수 + 상위 4개 모멘텀 양수면 공격자 4개에 25%씩 배분"""
+        data = {
+            "momentum_score_simple": {
+                "SPY": 0.90,
+                "IWM": 0.80,
+                "IEFA": 0.70,
+                "IEMG": 0.10,
+                "VNQ": 0.20,
+                "PDBC": 0.30,
+                "IEF": 0.40,
+                "TLT": 0.50,
+                "BIL": 0.05,
+                "TIP": 0.10,
+            }
+        }
+
+        result = self.strategy.calculate_allocation(data)
+
+        self.assertEqual(
+            result,
+            {
+                "SPY": 25.0,
+                "IWM": 25.0,
+                "IEFA": 25.0,
+                "TLT": 25.0,
+            },
+        )
+
+    def test_calculate_allocation_tip_positive_one_selected_non_positive(self):
+        """TIP 양수 + 상위 4개 중 1개 음수면 해당 슬리브를 방어자에 대체"""
+        data = {
+            "momentum_score_simple": {
+                "SPY": 0.90,
+                "IWM": 0.80,
+                "IEFA": 0.70,
+                "IEMG": -0.10,
+                "VNQ": -0.20,
+                "PDBC": -0.30,
+                "IEF": -0.05,
+                "TLT": 0.00,
+                "BIL": 0.02,
+                "TIP": 0.10,
+            }
+        }
+
+        result = self.strategy.calculate_allocation(data)
+
+        self.assertEqual(
+            result,
+            {
+                "SPY": 25.0,
+                "IWM": 25.0,
+                "IEFA": 25.0,
+                "BIL": 25.0,
+            },
+        )
+
+    def test_calculate_allocation_tip_positive_multiple_selected_non_positive_accumulate(self):
+        """TIP 양수 + 상위 4개 중 다수 음수면 방어자 슬리브가 누적되어야 함"""
+        data = {
+            "momentum_score_simple": {
+                "SPY": 0.90,
+                "IWM": 0.80,
+                "IEFA": -0.10,
+                "IEMG": -0.20,
+                "VNQ": -0.30,
+                "PDBC": -0.40,
+                "IEF": 0.01,
+                "TLT": -0.50,
+                "BIL": 0.00,
+                "TIP": 0.10,
+            }
+        }
+
+        result = self.strategy.calculate_allocation(data)
+
+        self.assertEqual(
+            result,
+            {
+                "SPY": 25.0,
+                "IWM": 25.0,
+                "IEF": 50.0,
+            },
+        )
+
     def test_calculate_allocation_tip_bad_prefers_ief(self):
         """TIP이 음수이고 IEF 모멘텀이 더 높으면 IEF를 선택해야 함"""
         data = {
