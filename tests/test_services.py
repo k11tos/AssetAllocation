@@ -149,6 +149,48 @@ class TestDataService(unittest.TestCase):
         self.assertEqual(profit_12month["QQQ"], 0.0)
         self.assertEqual(profit_6month["QQQ"], 0.0)
 
+    @patch("services.data_service.ta.SMA")
+    @patch("services.data_service.ta.ROC")
+    @patch("services.data_service.yf.download")
+    def test_get_financial_data_simple_momentum_is_average(
+        self, mock_download, mock_roc, mock_sma
+    ):
+        """단순 모멘텀은 1/3/6/12개월 수익률의 평균이어야 함"""
+        import numpy as np
+        import pandas as pd
+
+        dates = pd.date_range("2023-01-01", periods=260, freq="D")
+        prices = np.linspace(100, 120, 260)
+        mock_data = pd.DataFrame(
+            {("SPY", "Adj Close"): prices},
+            index=dates,
+        )
+        mock_download.return_value = mock_data
+
+        def roc_side_effect(_price_array, timeperiod):
+            mapping = {
+                21: 4.0,    # 1개월 수익률 4%
+                63: 6.0,    # 3개월 수익률 6%
+                126: 8.0,   # 6개월 수익률 8%
+                252: 12.0,  # 12개월 수익률 12%
+            }
+            return np.array([np.nan, mapping.get(timeperiod, 0.0)])
+
+        mock_roc.side_effect = roc_side_effect
+        mock_sma.return_value = np.array([110.0])
+
+        (
+            _momentum_score,
+            momentum_score_simple,
+            _profit_12month,
+            _profit_6month,
+            _sma_12month,
+            _today_price,
+        ) = self.data_service.get_financial_data("SPY")
+
+        # (0.04 + 0.06 + 0.08 + 0.12) / 4 = 0.075
+        self.assertAlmostEqual(momentum_score_simple["SPY"], 0.075, places=9)
+
     def test_cache_functionality(self):
         """캐시 기능 테스트"""
         # 캐시 통계 확인

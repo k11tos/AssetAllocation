@@ -287,12 +287,13 @@ class DataService:
                 + profit_1month[ticker] * momentum_weights["1_month"]
             )
 
+            # HAA 단순 모멘텀(13612U): 1/3/6/12개월 수익률의 동일가중 평균
             momentum_score_simple[ticker] = (
                 profit_12month[ticker]
                 + profit_6month[ticker]
                 + profit_3month[ticker]
                 + profit_1month[ticker]
-            )
+            ) / 4.0
 
             # 12개월 단순이동평균 계산 (ta-lib SMA 사용)
             sma_12month[ticker] = ta.SMA(
