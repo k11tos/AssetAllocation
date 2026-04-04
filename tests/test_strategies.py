@@ -150,6 +150,35 @@ class TestHAAStrategy(unittest.TestCase):
             },
         )
 
+    def test_calculate_allocation_debug_logs_include_branch_ranking_and_replacement(self):
+        """DEBUG 로그에 분기/랭킹/대체/최종 배분 정보가 포함되는지 테스트"""
+        data = {
+            "momentum_score_simple": {
+                "SPY": 0.90,
+                "IWM": 0.80,
+                "IEFA": 0.70,
+                "IEMG": -0.10,
+                "VNQ": -0.20,
+                "PDBC": -0.30,
+                "IEF": -0.90,
+                "TLT": -0.50,
+                "BIL": 0.00,
+                "TIP": 0.10,
+            }
+        }
+
+        with self.assertLogs(self.strategy.logger.name, level="DEBUG") as logs:
+            self.strategy.calculate_allocation(data)
+
+        log_output = "\n".join(logs.output)
+        self.assertIn("HAA momentum snapshot", log_output)
+        self.assertIn("HAA offensive momentum table", log_output)
+        self.assertIn("HAA mode=OFFENSIVE", log_output)
+        self.assertIn("HAA selected top", log_output)
+        self.assertIn("HAA replacing selected asset", log_output)
+        self.assertIn("HAA replacement defensive asset", log_output)
+        self.assertIn("HAA final allocation", log_output)
+
     def test_calculate_allocation_tip_bad_prefers_ief(self):
         """TIP이 음수이고 IEF 모멘텀이 더 높으면 IEF를 선택해야 함"""
         data = {
