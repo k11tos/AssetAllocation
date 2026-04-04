@@ -189,30 +189,50 @@ def main() -> None:
         successful_strategies = int(bool(haa_result)) + int(bool(kaw_result))
         success_rate = (successful_strategies / total_number_of_strategy) * 100
 
-        print_info_message(
-            "📊 자산 배분 리포트 | "
-            f"{current_date.isoformat()} ({format_compact_weekday(current_date)})"
-        )
-        print_info_message(
-            f"✅ 성공률 {success_rate:.1f}% "
-            f"({successful_strategies}/{total_number_of_strategy})"
-        )
+        strategy_sections: List[str] = []
 
         # HAA 전략 실행
         if haa_result:
-            print_asset_allocation(
-                haa_result, etf_descriptions, total_number_of_strategy, "[HAA]"
+            strategy_sections.append(
+                "\n".join(
+                    build_strategy_report_lines(
+                        haa_result,
+                        etf_descriptions,
+                        total_number_of_strategy,
+                        "[HAA]",
+                    )
+                )
             )
         else:
             LOGGER.warning("⚠️ HAA strategy failed - skipping output")
 
         # 한국형 올웨더 전략 (항상 실행)
         if kaw_result:
-            print_asset_allocation(
-                kaw_result, None, total_number_of_strategy, "[KAW]"
+            strategy_sections.append(
+                "\n".join(
+                    build_strategy_report_lines(
+                        kaw_result,
+                        None,
+                        total_number_of_strategy,
+                        "[KAW]",
+                    )
+                )
             )
         else:
             LOGGER.warning("⚠️ KAW strategy failed - skipping output")
+
+        print_info_message(
+            build_telegram_report_message(
+                current_date=current_date,
+                success_rate=success_rate,
+                successful_strategies=successful_strategies,
+                total_number_of_strategy=total_number_of_strategy,
+                strategy_sections=strategy_sections,
+                compact_diff_section=get_compact_diff_section_for_report(
+                    strategy_results
+                ),
+            )
+        )
 
         LOGGER.info(
             "✅ Asset allocation process completed. "
@@ -273,13 +293,9 @@ def persist_scheduled_execution_result(
             )
             LOGGER.info("📊 Scheduled execution diff summary:\n%s", diff_summary)
 
-            compact_summary = format_compact_execution_diff_summary(
+            format_compact_execution_diff_summary(
                 previous_result_data, strategy_results
             )
-            if compact_summary:
-                print_info_message(
-                    format_compact_diff_for_telegram(compact_summary)
-                )
             stage_overrides["notification_reporting"] = {"status": "success"}
         except Exception as e:
             stage_overrides["notification_reporting"] = {
@@ -338,6 +354,64 @@ def print_asset_allocation(
     print_info_message("\n".join(allocations))
 
 
+def build_telegram_report_message(
+    current_date: date,
+    success_rate: float,
+    successful_strategies: int,
+    total_number_of_strategy: int,
+    strategy_sections: List[str],
+    compact_diff_section: Optional[str] = None,
+) -> str:
+    """Assemble scheduled execution report as one Telegram-friendly message."""
+    sections = [
+        (
+            "📊 자산 배분 리포트 "
+            f"{current_date.isoformat()} ({format_compact_weekday(current_date)})"
+        ),
+        (
+            f"✅ 성공률 {success_rate:.1f}% "
+            f"({successful_strategies}/{total_number_of_strategy})"
+        ),
+    ]
+    sections.extend(strategy_sections)
+    if compact_diff_section:
+        sections.append(compact_diff_section)
+    return "\n\n".join(sections)
+
+
+def get_compact_diff_section_for_report(
+    strategy_results: Dict[str, Optional[Dict[str, float]]],
+) -> Optional[str]:
+    """Return Telegram-ready compact diff section when previous snapshot exists."""
+    try:
+        previous_result_data = load_execution_output_json(
+            SCHEDULED_LATEST_RESULT_PATH
+        )
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        LOGGER.warning(
+            "⚠️ Failed to load previous snapshot for report diff section: %s",
+            e,
+        )
+        return None
+
+    try:
+        compact_summary = format_compact_execution_diff_summary(
+            previous_result_data, strategy_results
+        )
+    except Exception as e:
+        LOGGER.warning(
+            "⚠️ Failed to build compact diff section for report: %s",
+            e,
+        )
+        return None
+
+    if not compact_summary:
+        return None
+    return format_compact_diff_for_telegram(compact_summary)
+
+
 def build_strategy_report_lines(
     asset_allocation: Dict[str, float],
     etf_descriptions: Optional[Dict[str, str]],
@@ -345,7 +419,7 @@ def build_strategy_report_lines(
     strategy_name: str,
 ) -> List[str]:
     """Build line-oriented strategy report output for Telegram rendering."""
-    strategy_display_name = strategy_name.replace("[", "").replace("]", "")
+    strategy_display_name = strategy_name.strip()
     lines = [strategy_display_name]
 
     for key, value in asset_allocation.items():
@@ -362,7 +436,7 @@ def format_compact_diff_for_telegram(compact_summary: str) -> str:
     """Convert compact diff summary into a mobile-friendly Telegram section."""
     lines = [line.strip() for line in compact_summary.splitlines() if line.strip()]
     if not lines:
-        return "🔄 변경 사항\n변경 내용 없음"
+        return "🔄 변경 사항\n\n- 변경 내용 없음"
 
     summary_line = "상세 변경 내역 확인"
     match = re.match(
@@ -375,7 +449,7 @@ def format_compact_diff_for_telegram(compact_summary: str) -> str:
             f"{changed_strategies}개 전략 변경 / {changed_entries}개 항목 변경"
         )
 
-    detail_lines = []
+    detail_lines: List[str] = []
     for line in lines[1:]:
         cleaned = re.sub(r"^-\s*\[[+\-~]\]\s*", "- ", line)
         cleaned = cleaned.replace("strategy added", "전략 추가")
@@ -387,6 +461,15 @@ def format_compact_diff_for_telegram(compact_summary: str) -> str:
             r"... 외 \1개 전략 변경",
             cleaned,
         )
+        # Keep one change detail per line for improved Telegram mobile readability.
+        split_match = re.match(r"^-\s*([^:]+:\s*)(.+)$", cleaned)
+        if split_match:
+            prefix, details = split_match.groups()
+            detail_items = [item.strip() for item in details.split(",") if item.strip()]
+            if detail_items:
+                detail_lines.append(f"- {prefix}{detail_items[0]}")
+                detail_lines.extend([f"  - {item}" for item in detail_items[1:]])
+                continue
         detail_lines.append(cleaned)
 
     section_lines = ["🔄 변경 사항", summary_line]

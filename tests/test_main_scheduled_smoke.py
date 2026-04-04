@@ -77,7 +77,6 @@ def main_module(monkeypatch):
 def test_main_scheduled_smoke_success_offline(monkeypatch, main_module):
     """Scheduled main flow runs end-to-end with deterministic mocked services."""
     info_message_mock = Mock()
-    allocation_mock = Mock()
     performance_monitor = Mock()
 
     monkeypatch.setattr(main_module, "validate_config", Mock(return_value=True))
@@ -93,7 +92,6 @@ def test_main_scheduled_smoke_success_offline(monkeypatch, main_module):
         ),
     )
     monkeypatch.setattr(main_module, "print_info_message", info_message_mock)
-    monkeypatch.setattr(main_module, "print_asset_allocation", allocation_mock)
     monkeypatch.setattr(
         main_module,
         "get_performance_monitor",
@@ -112,11 +110,9 @@ def test_main_scheduled_smoke_success_offline(monkeypatch, main_module):
     main_module.run_selected_strategies.assert_called_once_with(["HAA", "KAW"], "main")
 
     emitted_messages = [call.args[0] for call in info_message_mock.call_args_list]
-    assert emitted_messages[0] == "📊 자산 배분 리포트 | 2026-01-15 (Thu)"
-    assert emitted_messages[1] == "✅ 성공률 100.0% (2/2)"
-
-    assert allocation_mock.call_count == 2
-    assert allocation_mock.call_args_list[0].args[3] == "[HAA]"
-    assert allocation_mock.call_args_list[1].args[3] == "[KAW]"
+    assert len(emitted_messages) == 1
+    assert emitted_messages[0].startswith("📊 자산 배분 리포트 2026-01-15 (Thu)\n\n")
+    assert "\n\n✅ 성공률 100.0% (2/2)\n\n[HAA]\n" in emitted_messages[0]
+    assert "\n\n[KAW]\n- TIGER S&P500 50.00%" in emitted_messages[0]
 
     performance_monitor.log_summary.assert_called_once_with()
