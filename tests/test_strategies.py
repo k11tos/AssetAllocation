@@ -290,6 +290,28 @@ class TestHAAStrategy(unittest.TestCase):
         self.assertIn("IEMG (-0.100000) -> BIL", report)
         self.assertIn("Final allocation:", report)
 
+    def test_build_debug_report_omits_defensive_asset_when_not_allocated(self):
+        """공격 슬리브가 모두 양수면 Defensive asset used 문구를 출력하지 않아야 함"""
+        momentum_score_simple = {
+            "SPY": 0.90,
+            "IWM": 0.80,
+            "IEFA": 0.70,
+            "TLT": 0.60,
+            "IEMG": 0.10,
+            "VNQ": 0.05,
+            "PDBC": 0.01,
+            "IEF": 0.02,
+            "BIL": 0.03,
+            "TIP": 0.10,
+        }
+
+        report = self.strategy.build_debug_report(
+            momentum_score_simple=momentum_score_simple,
+            evaluation_date="2026-04-04",
+        )
+
+        self.assertNotIn("Defensive asset used:", report)
+
 
 class TestKoreanAllWeatherStrategy(unittest.TestCase):
     """한국형 올웨더 전략 테스트"""

@@ -8,7 +8,7 @@ import json
 import os
 import sys
 from numbers import Real
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from config import STRATEGY_CONFIG
@@ -513,9 +513,10 @@ def main():
         (_, momentum_score_simple, _, _, _, _) = data_service.get_financial_data(
             " ".join(required_tickers)
         )
+        evaluation_date = data_service.get_last_market_data_date() or "unknown"
         report = HAAStrategy().build_debug_report(
             momentum_score_simple=momentum_score_simple,
-            evaluation_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            evaluation_date=evaluation_date,
         )
         print(report)
         return

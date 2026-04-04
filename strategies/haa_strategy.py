@@ -202,7 +202,11 @@ class HAAStrategy(BaseStrategy):
         else:
             output.append("  - none")
 
-        if trace["defensive_asset"]:
+        defensive_asset = trace["defensive_asset"]
+        if (
+            defensive_asset
+            and trace["final_allocation"].get(defensive_asset, 0) > 0
+        ):
             output.append(f"Defensive asset used: {trace['defensive_asset']}")
 
         output.append("")

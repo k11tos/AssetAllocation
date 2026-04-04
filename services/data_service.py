@@ -33,7 +33,12 @@ class DataService:
         self.fred_account = None
         self.cache_manager = CacheManager(ttl_hours=cache_ttl_hours)
         self.security_manager = SecurityManager()
+        self.last_market_data_date: Optional[str] = None
         self._initialize_fred()
+
+    def get_last_market_data_date(self) -> Optional[str]:
+        """가장 최근 get_financial_data 실행의 시장 데이터 기준일을 반환합니다."""
+        return self.last_market_data_date
 
     def _initialize_fred(self) -> None:
         """FRED 계정을 초기화합니다."""
@@ -141,27 +146,42 @@ class DataService:
             LoggingConfig.log_data_retrieval(
                 LOGGER, "cache", valid_tickers, cached=True
             )
-            return cached_data
+            if isinstance(cached_data, dict) and "result" in cached_data:
+                self.last_market_data_date = cached_data.get("evaluation_date")
+                return cached_data["result"]
+            if isinstance(cached_data, tuple):
+                # 레거시 캐시 포맷: 기준일 정보가 없으므로 재조회 후 캐시 갱신
+                LOGGER.debug(
+                    "Legacy cache format detected; refreshing to capture evaluation date"
+                )
 
         LoggingConfig.log_data_retrieval(
             LOGGER, "yfinance", valid_tickers, cached=False
         )
-        data = self._fetch_financial_data(validated_tickers)
+        data, evaluation_date = self._fetch_financial_data(validated_tickers)
+        self.last_market_data_date = evaluation_date
 
         # 캐시에 저장
-        self.cache_manager.set(validated_tickers, data, **cache_key_params)
+        self.cache_manager.set(
+            validated_tickers,
+            {"result": data, "evaluation_date": evaluation_date},
+            **cache_key_params,
+        )
 
         return data
 
     def _fetch_financial_data(
         self, tickers: str
     ) -> Tuple[
-        Dict[str, float],
-        Dict[str, float],
-        Dict[str, float],
-        Dict[str, float],
-        Dict[str, float],
-        Dict[str, float],
+        Tuple[
+            Dict[str, float],
+            Dict[str, float],
+            Dict[str, float],
+            Dict[str, float],
+            Dict[str, float],
+            Dict[str, float],
+        ],
+        str,
     ]:
         """
         실제 금융 데이터를 가져옵니다.
@@ -285,13 +305,22 @@ class DataService:
             f"{len(tickers.split())} tickers"
         )
 
+        latest_index = data.index[-1]
+        evaluation_date = (
+            latest_index.strftime("%Y-%m-%d")
+            if hasattr(latest_index, "strftime")
+            else str(latest_index)
+        )
         return (
-            momentum_score,
-            momentum_score_simple,
-            profit_12month,
-            profit_6month,
-            sma_12month,
-            today_price,
+            (
+                momentum_score,
+                momentum_score_simple,
+                profit_12month,
+                profit_6month,
+                sma_12month,
+                today_price,
+            ),
+            evaluation_date,
         )
 
     @monitor_performance("get_fred_data")

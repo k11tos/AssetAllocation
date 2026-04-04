@@ -213,6 +213,9 @@ def test_haa_debug_report_path_prints_trace(monkeypatch, cli_module, capsys):
     )
 
     class _FakeDataService:
+        def __init__(self):
+            self._market_date = "2026-03-31"
+
         def get_financial_data(self, *_args, **_kwargs):
             return (
                 {},
@@ -231,6 +234,9 @@ def test_haa_debug_report_path_prints_trace(monkeypatch, cli_module, capsys):
                 {},
             )
 
+        def get_last_market_data_date(self):
+            return self._market_date
+
     monkeypatch.setattr(cli_module, "DataService", _FakeDataService)
 
     _run_cli(
@@ -241,7 +247,7 @@ def test_haa_debug_report_path_prints_trace(monkeypatch, cli_module, capsys):
 
     output = capsys.readouterr().out
     assert "HAA Decision Trace Report" in output
-    assert "Evaluation date:" in output
+    assert "Evaluation date: 2026-03-31" in output
     assert "Final allocation:" in output
 
 
