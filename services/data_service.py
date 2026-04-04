@@ -100,7 +100,7 @@ class DataService:
 
         Args:
             price_series: 일별 가격 시계열
-            drop_incomplete_current_month: True면 현재 진행 중인 달의 마지막 그룹을 제거
+            drop_incomplete_current_month: True면 실행 기준 "현재 달" 그룹을 무조건 제거
             as_of_date: 진행 중인 달 판단 기준일(테스트용). 미지정 시 현재 날짜 사용
         """
         if price_series.empty:
@@ -121,11 +121,8 @@ class DataService:
             current_month = reference_date.to_period("M")
 
             latest_month = month_end_prices.index[-1].to_period("M")
-            latest_trading_day = month_end_prices.index[-1].normalize()
-            # 휴장으로 월의 마지막 거래일이 달력 월말보다 앞당겨질 수 있으므로,
-            # "달력 월말 전" 여부가 아니라 run 기준일이 최신 거래일을 이미 지났는지로
-            # 진행 중 월(부분 월) 여부를 판단한다.
-            if latest_month == current_month and reference_date > latest_trading_day:
+            # HAA 운영 규칙: 현재 달은 절대 사용하지 않고, 다음 달이 시작된 뒤에만 유효.
+            if latest_month == current_month:
                 month_end_prices = month_end_prices.iloc[:-1]
 
         return month_end_prices
