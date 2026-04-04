@@ -64,8 +64,8 @@ class TestHAAStrategy(unittest.TestCase):
         self.assertEqual(len(result), 4)
         self.assertTrue(all(weight == 25.0 for weight in result.values()))
 
-    def test_calculate_allocation_ief_positive(self):
-        """IEF가 양수이고 TIP이 음수인 경우 테스트"""
+    def test_calculate_allocation_tip_bad_prefers_ief(self):
+        """TIP이 음수이고 IEF 모멘텀이 더 높으면 IEF를 선택해야 함"""
         data = {
             "momentum_score_simple": {
                 "SPY": 0.1,
@@ -74,6 +74,7 @@ class TestHAAStrategy(unittest.TestCase):
                 "IEMG": 0.05,
                 "TLT": 0.3,
                 "IEF": 0.25,
+                "BIL": 0.05,
                 "PDBC": 0.1,
                 "VNQ": 0.2,
                 "TIP": -0.1,  # 음수
@@ -85,8 +86,8 @@ class TestHAAStrategy(unittest.TestCase):
         # IEF에 100% 배분되어야 함
         self.assertEqual(result, {"IEF": 100})
 
-    def test_calculate_allocation_bil(self):
-        """TIP과 IEF가 모두 음수인 경우 테스트"""
+    def test_calculate_allocation_tip_bad_prefers_bil(self):
+        """TIP이 음수이고 BIL 모멘텀이 더 높으면 BIL을 선택해야 함"""
         data = {
             "momentum_score_simple": {
                 "SPY": 0.1,
@@ -95,6 +96,7 @@ class TestHAAStrategy(unittest.TestCase):
                 "IEMG": 0.05,
                 "TLT": 0.3,
                 "IEF": -0.25,
+                "BIL": -0.10,
                 "PDBC": 0.1,
                 "VNQ": 0.2,
                 "TIP": -0.1,  # 음수
@@ -104,6 +106,28 @@ class TestHAAStrategy(unittest.TestCase):
         result = self.strategy.calculate_allocation(data)
 
         # BIL에 100% 배분되어야 함
+        self.assertEqual(result, {"BIL": 100})
+
+    def test_calculate_allocation_tip_bad_equal_values_prefers_bil(self):
+        """TIP이 음수이고 BIL/IEF 모멘텀이 같으면 BIL을 우선 선택해야 함"""
+        data = {
+            "momentum_score_simple": {
+                "SPY": 0.1,
+                "IWM": 0.2,
+                "IEFA": 0.15,
+                "IEMG": 0.05,
+                "TLT": 0.3,
+                "IEF": 0.02,
+                "BIL": 0.02,
+                "PDBC": 0.1,
+                "VNQ": 0.2,
+                "TIP": -0.1,  # 음수
+            }
+        }
+
+        result = self.strategy.calculate_allocation(data)
+
+        # 동률이면 BIL 우선
         self.assertEqual(result, {"BIL": 100})
 
     def test_validate_data(self):
