@@ -189,30 +189,50 @@ def main() -> None:
         successful_strategies = int(bool(haa_result)) + int(bool(kaw_result))
         success_rate = (successful_strategies / total_number_of_strategy) * 100
 
-        print_info_message(
-            "📊 자산 배분 리포트 | "
-            f"{current_date.isoformat()} ({format_compact_weekday(current_date)})"
-        )
-        print_info_message(
-            f"✅ 성공률 {success_rate:.1f}% "
-            f"({successful_strategies}/{total_number_of_strategy})"
-        )
+        strategy_sections: List[str] = []
 
         # HAA 전략 실행
         if haa_result:
-            print_asset_allocation(
-                haa_result, etf_descriptions, total_number_of_strategy, "[HAA]"
+            strategy_sections.append(
+                "\n".join(
+                    build_strategy_report_lines(
+                        haa_result,
+                        etf_descriptions,
+                        total_number_of_strategy,
+                        "[HAA]",
+                    )
+                )
             )
         else:
             LOGGER.warning("⚠️ HAA strategy failed - skipping output")
 
         # 한국형 올웨더 전략 (항상 실행)
         if kaw_result:
-            print_asset_allocation(
-                kaw_result, None, total_number_of_strategy, "[KAW]"
+            strategy_sections.append(
+                "\n".join(
+                    build_strategy_report_lines(
+                        kaw_result,
+                        None,
+                        total_number_of_strategy,
+                        "[KAW]",
+                    )
+                )
             )
         else:
             LOGGER.warning("⚠️ KAW strategy failed - skipping output")
+
+        print_info_message(
+            build_telegram_report_message(
+                current_date=current_date,
+                success_rate=success_rate,
+                successful_strategies=successful_strategies,
+                total_number_of_strategy=total_number_of_strategy,
+                strategy_sections=strategy_sections,
+                compact_diff_section=get_compact_diff_section_for_report(
+                    strategy_results
+                ),
+            )
+        )
 
         LOGGER.info(
             "✅ Asset allocation process completed. "
@@ -273,13 +293,9 @@ def persist_scheduled_execution_result(
             )
             LOGGER.info("📊 Scheduled execution diff summary:\n%s", diff_summary)
 
-            compact_summary = format_compact_execution_diff_summary(
+            format_compact_execution_diff_summary(
                 previous_result_data, strategy_results
             )
-            if compact_summary:
-                print_info_message(
-                    format_compact_diff_for_telegram(compact_summary)
-                )
             stage_overrides["notification_reporting"] = {"status": "success"}
         except Exception as e:
             stage_overrides["notification_reporting"] = {
@@ -336,6 +352,64 @@ def print_asset_allocation(
         strategy_name=strategy_name,
     )
     print_info_message("\n".join(allocations))
+
+
+def build_telegram_report_message(
+    current_date: date,
+    success_rate: float,
+    successful_strategies: int,
+    total_number_of_strategy: int,
+    strategy_sections: List[str],
+    compact_diff_section: Optional[str] = None,
+) -> str:
+    """Assemble scheduled execution report as one Telegram-friendly message."""
+    sections = [
+        (
+            "📊 자산 배분 리포트 "
+            f"{current_date.isoformat()} ({format_compact_weekday(current_date)})"
+        ),
+        (
+            f"✅ 성공률 {success_rate:.1f}% "
+            f"({successful_strategies}/{total_number_of_strategy})"
+        ),
+    ]
+    sections.extend(strategy_sections)
+    if compact_diff_section:
+        sections.append(compact_diff_section)
+    return "\n\n".join(sections)
+
+
+def get_compact_diff_section_for_report(
+    strategy_results: Dict[str, Optional[Dict[str, float]]],
+) -> Optional[str]:
+    """Return Telegram-ready compact diff section when previous snapshot exists."""
+    try:
+        previous_result_data = load_execution_output_json(
+            SCHEDULED_LATEST_RESULT_PATH
+        )
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        LOGGER.warning(
+            "⚠️ Failed to load previous snapshot for report diff section: %s",
+            e,
+        )
+        return None
+
+    try:
+        compact_summary = format_compact_execution_diff_summary(
+            previous_result_data, strategy_results
+        )
+    except Exception as e:
+        LOGGER.warning(
+            "⚠️ Failed to build compact diff section for report: %s",
+            e,
+        )
+        return None
+
+    if not compact_summary:
+        return None
+    return format_compact_diff_for_telegram(compact_summary)
 
 
 def build_strategy_report_lines(
