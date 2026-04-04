@@ -40,10 +40,10 @@ class HAAStrategy(BaseStrategy):
         momentum_score_simple = data["momentum_score_simple"]
         haa = {}
 
-        # 공격자 자산 딕셔너리 구성
+        # 공격자(OFFENSIVE) 자산 딕셔너리 구성
         attacker_dict = {
             ticker: momentum_score_simple[ticker]
-            for ticker in HAA_CONFIG.ATTACKER_TICKERS
+            for ticker in HAA_CONFIG.OFFENSIVE_TICKERS
             if ticker in momentum_score_simple
         }
 
@@ -75,10 +75,10 @@ class HAAStrategy(BaseStrategy):
             haa["IEF"] = AllocationConstants.FULL_ALLOCATION
             self.logger.debug("IEF > 0, allocating 100% to IEF")
 
-        # 그 외의 경우 현금 보유
+        # 그 외의 경우 단기국채(BIL) 보유
         else:
-            haa["CASH"] = AllocationConstants.FULL_ALLOCATION
-            self.logger.debug("TIP and IEF <= 0, allocating 100% to CASH")
+            haa["BIL"] = AllocationConstants.FULL_ALLOCATION
+            self.logger.debug("TIP and IEF <= 0, allocating 100% to BIL")
 
         self.logger.debug(f"HAA allocation: {haa}")
         return haa

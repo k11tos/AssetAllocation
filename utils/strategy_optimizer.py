@@ -40,8 +40,13 @@ def get_required_tickers_for_strategy(strategy_name: str) -> List[str]:
 
 def _get_haa_tickers() -> List[str]:
     """HAA 전략에 필요한 티커 목록"""
-    # HAA는 공격자 자산 + TLT, IEF, TIP (시장 조건 판단용)
-    return HAA_CONFIG.ATTACKER_TICKERS + ["TLT", "IEF", "TIP"]
+    # HAA는 OFFENSIVE + DEFENSIVE + CANARY 유니버스 사용
+    tickers = (
+        HAA_CONFIG.OFFENSIVE_TICKERS
+        + HAA_CONFIG.DEFENSIVE_TICKERS
+        + HAA_CONFIG.CANARY_TICKERS
+    )
+    return list(dict.fromkeys(tickers))
 
 
 def _get_baa_tickers() -> List[str]:
