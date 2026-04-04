@@ -90,18 +90,40 @@ class DataService:
             )
             raise
 
-    def _extract_month_end_prices(self, price_series: pd.Series) -> pd.Series:
-        """일별 가격 시계열에서 월말(해당 월의 마지막 거래일) 종가를 추출합니다."""
+    def _extract_month_end_prices(
+        self,
+        price_series: pd.Series,
+        drop_incomplete_current_month: bool = False,
+        as_of_date: Optional[pd.Timestamp] = None,
+    ) -> pd.Series:
+        """일별 가격 시계열에서 월별 마지막 거래일 종가를 추출합니다.
+
+        Args:
+            price_series: 일별 가격 시계열
+            drop_incomplete_current_month: True면 실행 기준 "현재 달" 그룹을 무조건 제거
+            as_of_date: 진행 중인 달 판단 기준일(테스트용). 미지정 시 현재 날짜 사용
+        """
         if price_series.empty:
             return price_series
 
         if not isinstance(price_series.index, pd.DatetimeIndex):
             return pd.Series(dtype=np.float64)
 
-        month_end_prices = price_series.groupby(
-            price_series.index.to_period("M")
-        ).last()
-        month_end_prices.index = month_end_prices.index.to_timestamp("M")
+        period_index = price_series.index.to_period("M")
+        month_end_prices = price_series.groupby(period_index).tail(1).copy()
+        month_end_prices = month_end_prices.sort_index()
+
+        if drop_incomplete_current_month and not month_end_prices.empty:
+            reference_date = (
+                pd.Timestamp(as_of_date) if as_of_date is not None else pd.Timestamp.now()
+            )
+            reference_date = reference_date.normalize()
+            current_month = reference_date.to_period("M")
+
+            latest_month = month_end_prices.index[-1].to_period("M")
+            # HAA 운영 규칙: 현재 달은 절대 사용하지 않고, 다음 달이 시작된 뒤에만 유효.
+            if latest_month == current_month:
+                month_end_prices = month_end_prices.iloc[:-1]
 
         return month_end_prices
 
@@ -109,7 +131,10 @@ class DataService:
         self, price_series: pd.Series, lookback_months: Tuple[int, ...] = (1, 3, 6, 12)
     ) -> Dict[int, float]:
         """월말 가격 시계열 기반으로 지정 개월 수 수익률을 계산합니다."""
-        month_end_prices = self._extract_month_end_prices(price_series)
+        # HAA 의사결정은 "완료된 월" 기준이므로 현재 진행 중인 달은 제외한다.
+        month_end_prices = self._extract_month_end_prices(
+            price_series, drop_incomplete_current_month=True
+        )
         returns: Dict[int, float] = {}
 
         if month_end_prices.empty:
@@ -350,10 +375,23 @@ class DataService:
         )
 
         latest_index = data.index[-1]
+        haa_month_end_anchor: Optional[pd.Timestamp] = None
+        for ticker in tickers.split():
+            series = daily_price.get(ticker)
+            if series is None:
+                continue
+            month_end_prices = self._extract_month_end_prices(
+                series, drop_incomplete_current_month=True
+            )
+            if not month_end_prices.empty:
+                haa_month_end_anchor = month_end_prices.index[-1]
+                break
+
+        anchor_index = haa_month_end_anchor if haa_month_end_anchor is not None else latest_index
         evaluation_date = (
-            latest_index.strftime("%Y-%m-%d")
-            if hasattr(latest_index, "strftime")
-            else str(latest_index)
+            anchor_index.strftime("%Y-%m-%d")
+            if hasattr(anchor_index, "strftime")
+            else str(anchor_index)
         )
         return (
             (

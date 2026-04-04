@@ -124,6 +124,25 @@ class TestDataService(unittest.TestCase):
             self.data_service.get_financial_data("INVALID")
 
     @patch("services.data_service.yf.download")
+    def test_get_financial_data_records_completed_month_end_as_evaluation_date(
+        self, mock_download
+    ):
+        """HAA 보고용 기준일은 최신 일봉이 아닌 최신 완료 월말 거래일이어야 함"""
+        import pandas as pd
+
+        mock_data = pd.DataFrame(
+            {("SPY", "Adj Close"): [100.0, 110.0, 120.0]},
+            index=pd.to_datetime(["2026-02-27", "2026-03-31", "2026-04-03"]),
+        )
+        mock_download.return_value = mock_data
+
+        with patch("services.data_service.pd.Timestamp.now") as mock_now:
+            mock_now.return_value = pd.Timestamp("2026-04-04")
+            self.data_service.get_financial_data("SPY")
+
+        self.assertEqual(self.data_service.get_last_market_data_date(), "2026-03-31")
+
+    @patch("services.data_service.yf.download")
     def test_get_financial_data_insufficient_data(self, mock_download):
         """데이터가 부족한 경우 테스트 (6개월 데이터 필요)"""
         import pandas as pd
@@ -168,6 +187,8 @@ class TestDataService(unittest.TestCase):
         mock_sma.return_value = np.array([110.0])
 
         with patch.object(
+            self.data_service.cache_manager, "get", return_value=None
+        ), patch.object(
             self.data_service,
             "_calculate_month_end_returns",
             return_value={1: 0.04, 3: 0.06, 6: 0.08, 12: 0.12},
@@ -203,6 +224,61 @@ class TestDataService(unittest.TestCase):
         self.assertEqual(len(month_end_prices), 2)
         self.assertAlmostEqual(month_end_prices.iloc[-1], 110.0)
 
+    def test_extract_month_end_prices_excludes_in_progress_current_month(self):
+        """진행 중인 현재 월 데이터는 HAA 월말 앵커에서 제외되어야 함"""
+        import pandas as pd
+
+        prices = pd.Series(
+            [100.0, 110.0, 120.0],
+            index=pd.to_datetime(["2026-02-28", "2026-03-31", "2026-04-03"]),
+        )
+
+        month_end_prices = self.data_service._extract_month_end_prices(
+            prices,
+            drop_incomplete_current_month=True,
+            as_of_date=pd.Timestamp("2026-04-04"),
+        )
+
+        self.assertEqual(len(month_end_prices), 2)
+        self.assertEqual(month_end_prices.index[-1], pd.Timestamp("2026-03-31"))
+        self.assertAlmostEqual(month_end_prices.iloc[-1], 110.0)
+
+    def test_extract_month_end_prices_excludes_month_even_on_month_end(self):
+        """월말 당일이어도 현재 달은 HAA 월말 앵커에서 제외되어야 함"""
+        import pandas as pd
+
+        prices = pd.Series(
+            [100.0, 110.0],
+            index=pd.to_datetime(["2026-02-27", "2026-03-31"]),
+        )
+
+        month_end_prices = self.data_service._extract_month_end_prices(
+            prices,
+            drop_incomplete_current_month=True,
+            as_of_date=pd.Timestamp("2026-03-31"),
+        )
+
+        self.assertEqual(len(month_end_prices), 1)
+        self.assertEqual(month_end_prices.index[-1], pd.Timestamp("2026-02-27"))
+
+    def test_extract_month_end_prices_keeps_prior_month_after_next_month_begins(self):
+        """다음 달이 시작되면 직전 달 마지막 거래일은 유효 월말로 유지되어야 함"""
+        import pandas as pd
+
+        prices = pd.Series(
+            [100.0, 110.0],
+            index=pd.to_datetime(["2026-02-27", "2026-03-31"]),
+        )
+
+        month_end_prices = self.data_service._extract_month_end_prices(
+            prices,
+            drop_incomplete_current_month=True,
+            as_of_date=pd.Timestamp("2026-04-01"),
+        )
+
+        self.assertEqual(len(month_end_prices), 2)
+        self.assertEqual(month_end_prices.index[-1], pd.Timestamp("2026-03-31"))
+
     def test_calculate_month_end_returns_keeps_holiday_shortened_latest_month(self):
         """휴장으로 마지막 거래일이 월말 이전이어도 최신 월을 드롭하지 않아야 함"""
         import pandas as pd
@@ -226,6 +302,24 @@ class TestDataService(unittest.TestCase):
         self.assertAlmostEqual(month_end_returns[3], (130.0 / 100.0) - 1.0)
         self.assertEqual(month_end_returns[6], 0.0)
         self.assertEqual(month_end_returns[12], 0.0)
+
+    def test_calculate_month_end_returns_handles_insufficient_completed_history(self):
+        """완료된 월 이력이 부족하면 안전하게 0.0 수익률을 반환해야 함"""
+        import pandas as pd
+
+        prices = pd.Series(
+            [100.0, 105.0],
+            index=pd.to_datetime(["2026-03-31", "2026-04-03"]),
+        )
+
+        with patch("services.data_service.pd.Timestamp.now") as mock_now:
+            mock_now.return_value = pd.Timestamp("2026-04-04")
+            returns = self.data_service._calculate_month_end_returns(prices)
+
+        self.assertEqual(returns[1], 0.0)
+        self.assertEqual(returns[3], 0.0)
+        self.assertEqual(returns[6], 0.0)
+        self.assertEqual(returns[12], 0.0)
 
     def test_calculate_month_end_returns_for_13612_lookbacks(self):
         """월말 샘플 기준 1/3/6/12개월 수익률을 정확히 계산해야 함"""
