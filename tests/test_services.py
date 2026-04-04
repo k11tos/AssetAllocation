@@ -184,26 +184,44 @@ class TestDataService(unittest.TestCase):
         # (0.04 + 0.06 + 0.08 + 0.12) / 4 = 0.075
         self.assertAlmostEqual(momentum_score_simple["SPY"], 0.075, places=9)
 
-    def test_calculate_month_end_returns_uses_completed_months_only(self):
-        """월말이 아닌 최신 월 데이터는 HAA 월말 수익률 계산에서 제외되어야 함"""
+    def test_extract_month_end_prices_keeps_holiday_shortened_month_end(self):
+        """거래소 휴장으로 마지막 거래일이 앞당겨진 월도 월말 데이터로 유지해야 함"""
         import pandas as pd
 
         prices = pd.Series(
-            [100.0, 110.0, 120.0, 130.0, 1000.0],
+            [100.0, 110.0],
             index=pd.to_datetime(
                 [
-                    "2025-12-31",
-                    "2026-01-30",
-                    "2026-02-27",
-                    "2026-03-31",
-                    "2026-04-04",
+                    "2021-11-30",  # 정상 월말
+                    "2021-12-30",  # 12/31 휴장(신정 대체휴일)으로 실질 월말
+                ]
+            ),
+        )
+
+        month_end_prices = self.data_service._extract_month_end_prices(prices)
+
+        self.assertEqual(len(month_end_prices), 2)
+        self.assertAlmostEqual(month_end_prices.iloc[-1], 110.0)
+
+    def test_calculate_month_end_returns_keeps_holiday_shortened_latest_month(self):
+        """휴장으로 마지막 거래일이 월말 이전이어도 최신 월을 드롭하지 않아야 함"""
+        import pandas as pd
+
+        prices = pd.Series(
+            [100.0, 110.0, 120.0, 130.0],
+            index=pd.to_datetime(
+                [
+                    "2021-09-30",
+                    "2021-10-29",
+                    "2021-11-30",
+                    "2021-12-30",  # 12/31 휴장
                 ]
             ),
         )
 
         month_end_returns = self.data_service._calculate_month_end_returns(prices)
 
-        # 4월 데이터(부분 월)를 제외하고 3월을 기준으로 계산
+        # 최신 월(12월)을 유지해야 1개월 수익률이 130/120-1로 계산됨
         self.assertAlmostEqual(month_end_returns[1], (130.0 / 120.0) - 1.0)
         self.assertAlmostEqual(month_end_returns[3], (130.0 / 100.0) - 1.0)
         self.assertEqual(month_end_returns[6], 0.0)

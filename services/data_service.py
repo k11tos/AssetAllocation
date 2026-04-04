@@ -103,16 +103,6 @@ class DataService:
         ).last()
         month_end_prices.index = month_end_prices.index.to_timestamp("M")
 
-        latest_date = price_series.index[-1]
-        latest_business_month_end = latest_date + pd.offsets.BMonthEnd(0)
-
-        # 월말 리밸런싱 시점을 맞추기 위해, 아직 월말이 아닌 현재 월 데이터는 제외
-        if (
-            latest_date.normalize() != latest_business_month_end.normalize()
-            and len(month_end_prices) > 1
-        ):
-            month_end_prices = month_end_prices.iloc[:-1]
-
         return month_end_prices
 
     def _calculate_month_end_returns(
