@@ -8,10 +8,11 @@ import json
 import os
 import sys
 from numbers import Real
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from config import STRATEGY_CONFIG
+from strategies.haa_strategy import HAAStrategy
 from execution_output import (
     build_execution_output_data,
     format_compact_execution_diff_summary,
@@ -26,6 +27,7 @@ from portfolio import (
 from utils.performance_monitor import get_performance_monitor
 from strategy_runner import run_selected_strategies
 from utils.strategy_optimizer import (
+    get_required_tickers_for_strategy,
     print_optimization_summary,
 )
 from services.data_service import DataService
@@ -124,6 +126,14 @@ Examples:
         "--rebalance",
         type=str,
         help="리밸런싱 정보가 담긴 JSON 파일 경로",
+    )
+    parser.add_argument(
+        "--haa-debug-report",
+        action="store_true",
+        help=(
+            "HAA 한 번 실행의 의사결정 디버그 리포트 출력 "
+            "(전략 검증용, --strategy haa와 함께 권장)"
+        ),
     )
 
     return parser
@@ -493,6 +503,23 @@ def main():
         return
 
     # 전략 실행
+    if args.haa_debug_report:
+        if args.strategy != "haa":
+            print("Error: --haa-debug-report requires --strategy haa")
+            sys.exit(1)
+
+        required_tickers = get_required_tickers_for_strategy("haa")
+        data_service = DataService()
+        (_, momentum_score_simple, _, _, _, _) = data_service.get_financial_data(
+            " ".join(required_tickers)
+        )
+        report = HAAStrategy().build_debug_report(
+            momentum_score_simple=momentum_score_simple,
+            evaluation_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        )
+        print(report)
+        return
+
     available_strategies = ["HAA", "KAW", "BAA", "VAA", "LAA", "BDAA", "MDM"]
     if args.strategy == "all":
         requested_strategies = available_strategies

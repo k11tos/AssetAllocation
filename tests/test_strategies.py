@@ -262,6 +262,34 @@ class TestHAAStrategy(unittest.TestCase):
         with self.assertRaises(Exception):
             self.strategy.validate_data(invalid_data)
 
+    def test_build_debug_report_contains_decision_trace_sections(self):
+        """디버그 리포트에 의사결정 추적 섹션이 모두 포함되는지 테스트"""
+        momentum_score_simple = {
+            "SPY": 0.90,
+            "IWM": 0.80,
+            "IEFA": 0.70,
+            "IEMG": -0.10,
+            "VNQ": -0.20,
+            "PDBC": -0.30,
+            "IEF": -0.90,
+            "TLT": -0.50,
+            "BIL": 0.00,
+            "TIP": 0.10,
+        }
+
+        report = self.strategy.build_debug_report(
+            momentum_score_simple=momentum_score_simple,
+            evaluation_date="2026-04-04",
+        )
+
+        self.assertIn("Evaluation date: 2026-04-04", report)
+        self.assertIn("TIP / BIL / IEF momentum", report)
+        self.assertIn("Offensive universe momentum table", report)
+        self.assertIn("Ranked top 4 offensive assets", report)
+        self.assertIn("Replacements:", report)
+        self.assertIn("IEMG (-0.100000) -> BIL", report)
+        self.assertIn("Final allocation:", report)
+
 
 class TestKoreanAllWeatherStrategy(unittest.TestCase):
     """한국형 올웨더 전략 테스트"""

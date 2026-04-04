@@ -205,6 +205,46 @@ def test_strategy_kaw_runs_only_kaw(monkeypatch, cli_module, capsys):
     assert "KAW:" in capsys.readouterr().out
 
 
+def test_haa_debug_report_path_prints_trace(monkeypatch, cli_module, capsys):
+    cli_module, cli_executor_module = cli_module
+    monkeypatch.setattr(cli_executor_module, "run_haa_strategy", Mock())
+    monkeypatch.setattr(
+        cli_module, "get_required_tickers_for_strategy", lambda _name: ["TIP", "BIL", "IEF", "SPY"]
+    )
+
+    class _FakeDataService:
+        def get_financial_data(self, *_args, **_kwargs):
+            return (
+                {},
+                {
+                    "TIP": 0.1,
+                    "BIL": 0.03,
+                    "IEF": 0.02,
+                    "SPY": 0.2,
+                    "IWM": 0.1,
+                    "IEFA": 0.05,
+                    "IEMG": -0.01,
+                },
+                {},
+                {},
+                {},
+                {},
+            )
+
+    monkeypatch.setattr(cli_module, "DataService", _FakeDataService)
+
+    _run_cli(
+        monkeypatch,
+        cli_module,
+        ["--strategy", "haa", "--haa-debug-report"],
+    )
+
+    output = capsys.readouterr().out
+    assert "HAA Decision Trace Report" in output
+    assert "Evaluation date:" in output
+    assert "Final allocation:" in output
+
+
 def test_strategy_all_runs_all_supported_strategies(
     monkeypatch, cli_module, capsys
 ):
