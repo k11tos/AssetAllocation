@@ -551,7 +551,7 @@ def test_print_asset_allocation_emits_grouped_strategy_block(monkeypatch, main_m
     )
 
     info_message_mock.assert_called_once_with(
-        "HAA\n- S&P 500 50.00%\n- NASDAQ 100 25.00%"
+        "[HAA]\n- S&P 500 50.00%\n- NASDAQ 100 25.00%"
     )
 
 
@@ -563,7 +563,7 @@ def test_build_strategy_report_lines_returns_line_list(main_module):
         strategy_name="[HAA]",
     )
 
-    assert lines == ["HAA", "- S&P 500 50.00%", "- NASDAQ 100 25.00%"]
+    assert lines == ["[HAA]", "- S&P 500 50.00%", "- NASDAQ 100 25.00%"]
 
 
 def test_format_compact_diff_for_telegram_renders_separate_section(main_module):
@@ -575,12 +575,25 @@ def test_format_compact_diff_for_telegram_renders_separate_section(main_module):
     rendered = main_module.format_compact_diff_for_telegram(compact_summary)
 
     assert rendered.startswith("🔄 변경 사항\n1개 전략 변경 / 2개 항목 변경")
-    assert "- KAW: KOSEF 200TR -15.00%, KOSEF 국고채10년 +15.00%" in rendered
+    assert "- KAW: KOSEF 200TR -15.00%" in rendered
+    assert "  - KOSEF 국고채10년 +15.00%" in rendered
 
 
 def test_format_compact_diff_for_telegram_no_diff_case_is_clean(main_module):
     rendered = main_module.format_compact_diff_for_telegram("")
-    assert rendered == "🔄 변경 사항\n변경 내용 없음"
+    assert rendered == "🔄 변경 사항\n\n- 변경 내용 없음"
+
+
+def test_format_compact_diff_for_telegram_preserves_blank_line_before_details(
+    main_module,
+):
+    compact_summary = (
+        "Scheduled diff: 1 strategies changed, 1 allocation entries changed\n"
+        "- [~] HAA: result changed"
+    )
+
+    rendered = main_module.format_compact_diff_for_telegram(compact_summary)
+    assert "1개 전략 변경 / 1개 항목 변경\n\n- HAA: 결과 변경" in rendered
 
 
 def test_main_emits_success_line_immediately_after_header(monkeypatch, main_module):

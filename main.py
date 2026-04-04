@@ -345,7 +345,7 @@ def build_strategy_report_lines(
     strategy_name: str,
 ) -> List[str]:
     """Build line-oriented strategy report output for Telegram rendering."""
-    strategy_display_name = strategy_name.replace("[", "").replace("]", "")
+    strategy_display_name = strategy_name.strip()
     lines = [strategy_display_name]
 
     for key, value in asset_allocation.items():
@@ -362,7 +362,7 @@ def format_compact_diff_for_telegram(compact_summary: str) -> str:
     """Convert compact diff summary into a mobile-friendly Telegram section."""
     lines = [line.strip() for line in compact_summary.splitlines() if line.strip()]
     if not lines:
-        return "🔄 변경 사항\n변경 내용 없음"
+        return "🔄 변경 사항\n\n- 변경 내용 없음"
 
     summary_line = "상세 변경 내역 확인"
     match = re.match(
@@ -375,7 +375,7 @@ def format_compact_diff_for_telegram(compact_summary: str) -> str:
             f"{changed_strategies}개 전략 변경 / {changed_entries}개 항목 변경"
         )
 
-    detail_lines = []
+    detail_lines: List[str] = []
     for line in lines[1:]:
         cleaned = re.sub(r"^-\s*\[[+\-~]\]\s*", "- ", line)
         cleaned = cleaned.replace("strategy added", "전략 추가")
@@ -387,6 +387,15 @@ def format_compact_diff_for_telegram(compact_summary: str) -> str:
             r"... 외 \1개 전략 변경",
             cleaned,
         )
+        # Keep one change detail per line for improved Telegram mobile readability.
+        split_match = re.match(r"^-\s*([^:]+:\s*)(.+)$", cleaned)
+        if split_match:
+            prefix, details = split_match.groups()
+            detail_items = [item.strip() for item in details.split(",") if item.strip()]
+            if detail_items:
+                detail_lines.append(f"- {prefix}{detail_items[0]}")
+                detail_lines.extend([f"  - {item}" for item in detail_items[1:]])
+                continue
         detail_lines.append(cleaned)
 
     section_lines = ["🔄 변경 사항", summary_line]
