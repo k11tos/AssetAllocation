@@ -555,6 +555,17 @@ def test_print_asset_allocation_emits_grouped_strategy_block(monkeypatch, main_m
     )
 
 
+def test_build_strategy_report_lines_returns_line_list(main_module):
+    lines = main_module.build_strategy_report_lines(
+        asset_allocation={"SPY": 100.0, "QQQ": 50.0},
+        etf_descriptions={"SPY": "S&P 500", "QQQ": "NASDAQ 100"},
+        total_number_of_strategy=2,
+        strategy_name="[HAA]",
+    )
+
+    assert lines == ["HAA", "- S&P 500 50.00%", "- NASDAQ 100 25.00%"]
+
+
 def test_format_compact_diff_for_telegram_renders_separate_section(main_module):
     compact_summary = (
         "Scheduled diff: 1 strategies changed, 2 allocation entries changed\n"
