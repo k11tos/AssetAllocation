@@ -47,27 +47,38 @@ class HAAStrategy(BaseStrategy):
             if ticker in momentum_score_simple
         }
 
-        # TIP이 양수인 경우 상위 4개 공격자 자산에 균등 배분
+        # TIP이 양수인 경우 상위 4개 공격자 자산을 선정하고,
+        # 각 슬리브를 개별적으로 절대 모멘텀 필터링한다.
         if (
             momentum_score_simple.get("TIP", 0) > HAA_CONFIG.TIP_THRESHOLD
             and attacker_dict
         ):
-            attacker_profit_top4 = dict(
-                sorted(
-                    attacker_dict.items(), key=lambda x: x[1], reverse=True
-                )[: HAA_CONFIG.TOP_ATTACKERS_COUNT]
-            )
-            # 실제 선택된 자산 수로 나누어 항상 100% 배분 보장
-            num_selected = len(attacker_profit_top4)
+            attacker_profit_top = sorted(
+                attacker_dict.items(), key=lambda x: x[1], reverse=True
+            )[: HAA_CONFIG.TOP_ATTACKERS_COUNT]
+
+            num_selected = len(attacker_profit_top)
             if num_selected > 0:
-                allocation_per_asset = (
+                allocation_per_sleeve = (
                     AllocationConstants.FULL_ALLOCATION / num_selected
                 )
-                for key in attacker_profit_top4.keys():
-                    haa[key] = allocation_per_asset
+                bil_momentum = momentum_score_simple.get("BIL", 0)
+                ief_momentum = momentum_score_simple.get("IEF", 0)
+                defensive_asset = (
+                    "BIL" if bil_momentum >= ief_momentum else "IEF"
+                )
+
+                for ticker, momentum in attacker_profit_top:
+                    target_asset = (
+                        ticker if momentum > 0 else defensive_asset
+                    )
+                    haa[target_asset] = (
+                        haa.get(target_asset, 0) + allocation_per_sleeve
+                    )
+
             self.logger.debug(
-                f"TIP > 0, using top {num_selected} "
-                f"attackers: {list(attacker_profit_top4.keys())}"
+                f"TIP > 0, top attackers: {[t for t, _ in attacker_profit_top]}, "
+                f"allocation: {haa}"
             )
 
         # TIP이 0 이하인 경우 방어 자산(BIL/IEF) 중 모멘텀이 더 높은 자산 선택
