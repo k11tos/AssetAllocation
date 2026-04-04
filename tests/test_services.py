@@ -150,12 +150,11 @@ class TestDataService(unittest.TestCase):
         self.assertEqual(profit_6month["QQQ"], 0.0)
 
     @patch("services.data_service.ta.SMA")
-    @patch("services.data_service.ta.ROC")
     @patch("services.data_service.yf.download")
     def test_get_financial_data_simple_momentum_is_average(
-        self, mock_download, mock_roc, mock_sma
+        self, mock_download, mock_sma
     ):
-        """단순 모멘텀은 1/3/6/12개월 수익률의 평균이어야 함"""
+        """단순 모멘텀은 월말 1/3/6/12개월 수익률의 평균이어야 함"""
         import numpy as np
         import pandas as pd
 
@@ -166,30 +165,82 @@ class TestDataService(unittest.TestCase):
             index=dates,
         )
         mock_download.return_value = mock_data
-
-        def roc_side_effect(_price_array, timeperiod):
-            mapping = {
-                21: 4.0,    # 1개월 수익률 4%
-                63: 6.0,    # 3개월 수익률 6%
-                126: 8.0,   # 6개월 수익률 8%
-                252: 12.0,  # 12개월 수익률 12%
-            }
-            return np.array([np.nan, mapping.get(timeperiod, 0.0)])
-
-        mock_roc.side_effect = roc_side_effect
         mock_sma.return_value = np.array([110.0])
 
-        (
-            _momentum_score,
-            momentum_score_simple,
-            _profit_12month,
-            _profit_6month,
-            _sma_12month,
-            _today_price,
-        ) = self.data_service.get_financial_data("SPY")
+        with patch.object(
+            self.data_service,
+            "_calculate_month_end_returns",
+            return_value={1: 0.04, 3: 0.06, 6: 0.08, 12: 0.12},
+        ):
+            (
+                _momentum_score,
+                momentum_score_simple,
+                _profit_12month,
+                _profit_6month,
+                _sma_12month,
+                _today_price,
+            ) = self.data_service.get_financial_data("SPY")
 
         # (0.04 + 0.06 + 0.08 + 0.12) / 4 = 0.075
         self.assertAlmostEqual(momentum_score_simple["SPY"], 0.075, places=9)
+
+    def test_extract_month_end_prices_keeps_holiday_shortened_month_end(self):
+        """거래소 휴장으로 마지막 거래일이 앞당겨진 월도 월말 데이터로 유지해야 함"""
+        import pandas as pd
+
+        prices = pd.Series(
+            [100.0, 110.0],
+            index=pd.to_datetime(
+                [
+                    "2021-11-30",  # 정상 월말
+                    "2021-12-30",  # 12/31 휴장(신정 대체휴일)으로 실질 월말
+                ]
+            ),
+        )
+
+        month_end_prices = self.data_service._extract_month_end_prices(prices)
+
+        self.assertEqual(len(month_end_prices), 2)
+        self.assertAlmostEqual(month_end_prices.iloc[-1], 110.0)
+
+    def test_calculate_month_end_returns_keeps_holiday_shortened_latest_month(self):
+        """휴장으로 마지막 거래일이 월말 이전이어도 최신 월을 드롭하지 않아야 함"""
+        import pandas as pd
+
+        prices = pd.Series(
+            [100.0, 110.0, 120.0, 130.0],
+            index=pd.to_datetime(
+                [
+                    "2021-09-30",
+                    "2021-10-29",
+                    "2021-11-30",
+                    "2021-12-30",  # 12/31 휴장
+                ]
+            ),
+        )
+
+        month_end_returns = self.data_service._calculate_month_end_returns(prices)
+
+        # 최신 월(12월)을 유지해야 1개월 수익률이 130/120-1로 계산됨
+        self.assertAlmostEqual(month_end_returns[1], (130.0 / 120.0) - 1.0)
+        self.assertAlmostEqual(month_end_returns[3], (130.0 / 100.0) - 1.0)
+        self.assertEqual(month_end_returns[6], 0.0)
+        self.assertEqual(month_end_returns[12], 0.0)
+
+    def test_calculate_month_end_returns_for_13612_lookbacks(self):
+        """월말 샘플 기준 1/3/6/12개월 수익률을 정확히 계산해야 함"""
+        import pandas as pd
+
+        month_end_dates = pd.date_range("2025-01-31", periods=13, freq="BME")
+        month_end_prices = [100.0 + i * 10.0 for i in range(13)]
+        prices = pd.Series(month_end_prices, index=month_end_dates)
+
+        month_end_returns = self.data_service._calculate_month_end_returns(prices)
+
+        self.assertAlmostEqual(month_end_returns[1], (220.0 / 210.0) - 1.0)
+        self.assertAlmostEqual(month_end_returns[3], (220.0 / 190.0) - 1.0)
+        self.assertAlmostEqual(month_end_returns[6], (220.0 / 160.0) - 1.0)
+        self.assertAlmostEqual(month_end_returns[12], (220.0 / 100.0) - 1.0)
 
     def test_cache_functionality(self):
         """캐시 기능 테스트"""
