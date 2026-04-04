@@ -70,15 +70,18 @@ class HAAStrategy(BaseStrategy):
                 f"attackers: {list(attacker_profit_top4.keys())}"
             )
 
-        # IEF가 양수인 경우 IEF에 100% 배분
-        elif momentum_score_simple.get("IEF", 0) > HAA_CONFIG.IEF_THRESHOLD:
-            haa["IEF"] = AllocationConstants.FULL_ALLOCATION
-            self.logger.debug("IEF > 0, allocating 100% to IEF")
-
-        # 그 외의 경우 단기국채(BIL) 보유
+        # TIP이 0 이하인 경우 방어 자산(BIL/IEF) 중 모멘텀이 더 높은 자산 선택
         else:
-            haa["BIL"] = AllocationConstants.FULL_ALLOCATION
-            self.logger.debug("TIP and IEF <= 0, allocating 100% to BIL")
+            bil_momentum = momentum_score_simple.get("BIL", 0)
+            ief_momentum = momentum_score_simple.get("IEF", 0)
+
+            # 동률이면 현금성 자산인 BIL 우선
+            defensive_asset = "BIL" if bil_momentum >= ief_momentum else "IEF"
+            haa[defensive_asset] = AllocationConstants.FULL_ALLOCATION
+            self.logger.debug(
+                f"TIP <= 0, selecting defensive asset: {defensive_asset} "
+                f"(BIL={bil_momentum}, IEF={ief_momentum})"
+            )
 
         self.logger.debug(f"HAA allocation: {haa}")
         return haa
