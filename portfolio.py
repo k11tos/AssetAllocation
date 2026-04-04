@@ -4,7 +4,7 @@ Portfolio management module - refactored for better structure
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -227,27 +227,29 @@ def print_info_message(message_string: str) -> None:
     Args:
         message_string: 출력할 메시지
     """
+    print_info_messages([message_string])
+
+
+def print_info_messages(messages: Sequence[str]) -> None:
+    """정보 메시지 목록을 출력하고 텔레그램으로 전송합니다."""
     try:
         communication_service = CommunicationService()
-        success = communication_service.send_message(message_string)
+        success = communication_service.send_messages(messages)
 
         if success:
-            LOGGER.debug(
-                f"📤 Message sent via Telegram: {message_string[:50]}..."
-            )
+            preview = messages[0][:50] if messages else ""
+            LOGGER.debug(f"📤 Messages sent via Telegram: {preview}...")
         else:
-            LOGGER.info(
-                f"📤 Telegram send failed, logged locally: {message_string}"
-            )
+            LOGGER.info("📤 Telegram send failed, logged locally: %s", messages)
 
     except Exception as e:
         LoggingConfig.log_error_with_context(
             LOGGER,
             e,
-            "print_info_message",
-            {"message_length": len(message_string)},
+            "print_info_messages",
+            {"message_count": len(messages)},
         )
-        LOGGER.info(f"📤 Message logged locally: {message_string}")
+        LOGGER.info("📤 Messages logged locally: %s", messages)
 
 
 # Service factory functions

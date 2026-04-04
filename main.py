@@ -329,17 +329,33 @@ def print_asset_allocation(
     :return: None
     """
 
+    allocations = build_strategy_report_lines(
+        asset_allocation=asset_allocation,
+        etf_descriptions=etf_descriptions,
+        total_number_of_strategy=total_number_of_strategy,
+        strategy_name=strategy_name,
+    )
+    print_info_message("\n".join(allocations))
+
+
+def build_strategy_report_lines(
+    asset_allocation: Dict[str, float],
+    etf_descriptions: Optional[Dict[str, str]],
+    total_number_of_strategy: int,
+    strategy_name: str,
+) -> List[str]:
+    """Build line-oriented strategy report output for Telegram rendering."""
     strategy_display_name = strategy_name.replace("[", "").replace("]", "")
-    allocations = [strategy_display_name]
+    lines = [strategy_display_name]
 
     for key, value in asset_allocation.items():
         percentage = round(value / total_number_of_strategy, 2)
         display_name = (
             etf_descriptions.get(key, key) if etf_descriptions else key
         )
-        allocations.append(f"- {display_name} {percentage:.2f}%")
+        lines.append(f"- {display_name} {percentage:.2f}%")
 
-    print_info_message("\n".join(allocations))
+    return lines
 
 
 def format_compact_diff_for_telegram(compact_summary: str) -> str:

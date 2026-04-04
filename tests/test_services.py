@@ -411,6 +411,41 @@ class TestCommunicationService(unittest.TestCase):
             self.assertFalse(result)
             mock_post.assert_called_once()
 
+    @patch("services.communication_service.telegram.Bot")
+    def test_send_messages_success(self, mock_bot_class):
+        """메시지 목록 전송 성공 테스트"""
+        mock_bot_class.return_value = Mock()
+        service = CommunicationService()
+
+        with patch.object(service, "send_message", return_value=True) as mock_send:
+            result = service.send_messages(["line1", "line2"])
+
+        self.assertTrue(result)
+        self.assertEqual(mock_send.call_count, 2)
+
+    @patch("services.communication_service.telegram.Bot")
+    def test_send_messages_fail_fast_on_first_failure(self, mock_bot_class):
+        """첫 번째 실패 시 후속 메시지 전송을 중단해야 함"""
+        mock_bot_class.return_value = Mock()
+        service = CommunicationService()
+
+        with patch.object(
+            service, "send_message", side_effect=[False, True]
+        ) as mock_send:
+            result = service.send_messages(["line1", "line2"])
+
+        self.assertFalse(result)
+        self.assertEqual(mock_send.call_count, 1)
+
+    @patch("services.communication_service.telegram.Bot")
+    def test_send_messages_rejects_string_payload(self, mock_bot_class):
+        """문자열 단일 payload는 목록으로 간주하지 않아야 함"""
+        mock_bot_class.return_value = Mock()
+        service = CommunicationService()
+
+        result = service.send_messages("not-a-list")
+        self.assertFalse(result)
+
     def test_get_telegram_bot_invalid_mode(self):
         """잘못된 모드로 봇 가져오기 테스트"""
         # 텔레그램이 초기화되지 않은 상태

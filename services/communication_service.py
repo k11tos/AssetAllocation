@@ -3,9 +3,8 @@
 Communication service for messaging and notifications
 """
 
-import asyncio
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Optional, Sequence, Union
 
 import requests
 import telegram
@@ -176,6 +175,24 @@ class CommunicationService:
                 "ERROR",
             )
             return False
+
+    def send_messages(self, messages: Sequence[str]) -> bool:
+        """Send multiple Telegram messages in order.
+
+        Fail-fast semantics prevent confusing partial report delivery.
+        """
+        if not isinstance(messages, Sequence) or isinstance(messages, str):
+            LOGGER.warning("⚠️ Invalid messages payload format")
+            return False
+
+        if not messages:
+            LOGGER.warning("⚠️ Empty messages payload")
+            return False
+
+        for message in messages:
+            if not self.send_message(message):
+                return False
+        return True
 
     def get_telegram_bot(
         self, mode: str = "information"
