@@ -130,6 +130,30 @@ class TestSecurityManager(unittest.TestCase):
         sanitized = self.security_manager.sanitize_input(None)
         self.assertEqual(sanitized, "")
 
+    def test_sanitize_input_preserve_linebreaks_for_telegram(self):
+        """텔레그램용 sanitize에서 줄바꿈 보존 테스트"""
+        input_message = "라인1\r\n라인2\t\t값\n\n\n  라인3  "
+        sanitized = self.security_manager.sanitize_input(
+            input_message,
+            allow_html=True,
+            preserve_linebreaks=True,
+        )
+
+        self.assertEqual(sanitized, "라인1\n라인2 값\n\n라인3")
+
+    def test_sanitize_input_preserve_linebreaks_keeps_dangerous_char_filter(
+        self,
+    ):
+        """줄바꿈 보존 옵션에서도 위험 문자 제거 유지 테스트"""
+        input_message = "<b>Title</b>\nalert('x') | $HOME"
+        sanitized = self.security_manager.sanitize_input(
+            input_message,
+            allow_html=True,
+            preserve_linebreaks=True,
+        )
+
+        self.assertEqual(sanitized, "<b>Title</b>\nalert(x) HOME")
+
     def test_validate_ticker_symbol(self):
         """티커 심볼 검증 테스트"""
         # 유효한 티커들

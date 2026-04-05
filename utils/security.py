@@ -110,6 +110,7 @@ class SecurityManager:
         input_string: str,
         max_length: int = 1000,
         allow_html: bool = False,
+        preserve_linebreaks: bool = False,
     ) -> str:
         """
         사용자 입력을 정리합니다.
@@ -118,6 +119,7 @@ class SecurityManager:
             input_string: 정리할 입력 문자열
             max_length: 최대 길이
             allow_html: HTML 태그 허용 여부
+            preserve_linebreaks: 줄바꿈 보존 여부
 
         Returns:
             정리된 문자열
@@ -158,8 +160,16 @@ class SecurityManager:
             for char in dangerous_chars:
                 sanitized = sanitized.replace(char, "")
 
-        # 연속된 공백 제거
-        sanitized = re.sub(r"\s+", " ", sanitized).strip()
+        if preserve_linebreaks:
+            # 줄바꿈은 유지하고, 탭/연속 공백만 정리
+            sanitized = sanitized.replace("\r\n", "\n").replace("\r", "\n")
+            sanitized = re.sub(r"[ \t]+", " ", sanitized)
+            sanitized = "\n".join(line.strip() for line in sanitized.split("\n"))
+            # 과도한 빈 줄은 최대 2개 줄바꿈(빈 줄 1개)으로 제한
+            sanitized = re.sub(r"\n{3,}", "\n\n", sanitized).strip()
+        else:
+            # 연속된 공백 제거
+            sanitized = re.sub(r"\s+", " ", sanitized).strip()
 
         return sanitized
 

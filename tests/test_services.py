@@ -396,6 +396,29 @@ class TestCommunicationService(unittest.TestCase):
             mock_post.assert_called_once()
 
     @patch("services.communication_service.telegram.Bot")
+    def test_send_message_preserves_newlines(self, mock_bot_class):
+        """메시지 전송 시 줄바꿈 보존 테스트"""
+        mock_bot = Mock()
+        mock_bot_class.return_value = mock_bot
+
+        service = CommunicationService()
+
+        with patch.object(service.session, "post") as mock_post:
+            mock_response = Mock()
+            mock_response.raise_for_status.return_value = None
+            mock_post.return_value = mock_response
+
+            message = "제목\n전략 A: 50%\n전략 B:\t\t50%"
+            result = service.send_message(message)
+
+            self.assertTrue(result)
+            mock_post.assert_called_once()
+            sent_data = mock_post.call_args.kwargs["data"]
+            self.assertEqual(
+                sent_data["text"], "제목\n전략 A: 50%\n전략 B: 50%"
+            )
+
+    @patch("services.communication_service.telegram.Bot")
     def test_send_message_failure(self, mock_bot_class):
         """메시지 전송 실패 테스트"""
         mock_bot = Mock()
