@@ -481,6 +481,26 @@ class TestCommunicationService(unittest.TestCase):
         self.assertFalse(result)
 
     @patch("services.communication_service.telegram.Bot")
+    def test_send_messages_rejects_non_string_item_without_crashing(
+        self, mock_bot_class
+    ):
+        """목록 내부 비문자열 항목은 크래시 없이 False를 반환해야 함"""
+        mock_bot_class.return_value = Mock()
+        service = CommunicationService()
+
+        with patch.object(service, "send_message") as mock_send:
+            with self.assertLogs(
+                "services.communication_service", level="WARNING"
+            ) as captured_logs:
+                result = service.send_messages(["line1", 123, "line3"])
+
+        self.assertFalse(result)
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertTrue(
+            any("Invalid message item at index=2/3" in log for log in captured_logs.output)
+        )
+
+    @patch("services.communication_service.telegram.Bot")
     def test_send_messages_logs_and_reraises_late_exception(
         self, mock_bot_class
     ):

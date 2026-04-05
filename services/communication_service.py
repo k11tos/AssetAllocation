@@ -231,6 +231,15 @@ class CommunicationService:
         message_thread_id = API_CONFIG.TELEGRAM_MESSAGE_THREAD_ID or None
 
         for index, message in enumerate(messages, start=1):
+            if not isinstance(message, str) or not message:
+                LOGGER.warning(
+                    "⚠️ Invalid message item at index=%s/%s type=%s",
+                    index,
+                    total_messages,
+                    type(message).__name__,
+                )
+                return False
+
             LOGGER.debug(
                 "📨 Telegram send attempt payload_type=list "
                 "total_messages=%s message_index=%s/%s chat_id=%s "
