@@ -41,6 +41,7 @@ LOGGER = LoggingConfig.get_logger(__name__)
 SCHEDULED_OUTPUT_DIR = "outputs"
 SCHEDULED_LATEST_RESULT_PATH = os.path.join(SCHEDULED_OUTPUT_DIR, "latest.json")
 SCHEDULED_HISTORY_DIR = os.path.join(SCHEDULED_OUTPUT_DIR, "history")
+TELEGRAM_SINGLE_MESSAGE_SAFE_MAX_LENGTH = 3500
 
 _COMPACT_WEEKDAY = {
     0: "Mon",
@@ -222,20 +223,28 @@ def main() -> None:
         else:
             LOGGER.warning("⚠️ KAW strategy failed - skipping output")
 
-        report_messages = build_telegram_report_messages(
+        compact_diff_section = get_compact_diff_section_for_report(strategy_results)
+        report_message = build_telegram_report_message(
             current_date=current_date,
             success_rate=success_rate,
             successful_strategies=successful_strategies,
             total_number_of_strategy=total_number_of_strategy,
             strategy_sections=strategy_sections,
-            compact_diff_section=get_compact_diff_section_for_report(
-                strategy_results
-            ),
+            compact_diff_section=compact_diff_section,
         )
-        if len(report_messages) == 1:
-            print_info_message(report_messages[0])
-        else:
+
+        if should_use_multimessage_fallback(report_message):
+            report_messages = build_telegram_report_messages(
+                current_date=current_date,
+                success_rate=success_rate,
+                successful_strategies=successful_strategies,
+                total_number_of_strategy=total_number_of_strategy,
+                strategy_sections=strategy_sections,
+                compact_diff_section=compact_diff_section,
+            )
             print_info_messages(report_messages)
+        else:
+            print_info_message(report_message)
 
         LOGGER.info(
             "✅ Asset allocation process completed. "
@@ -403,6 +412,11 @@ def build_telegram_report_messages(
     if compact_diff_section:
         messages.append(compact_diff_section)
     return messages
+
+
+def should_use_multimessage_fallback(report_message: str) -> bool:
+    """Return True when single-message delivery is likely unsafe for Telegram."""
+    return len(report_message) > TELEGRAM_SINGLE_MESSAGE_SAFE_MAX_LENGTH
 
 
 def get_compact_diff_section_for_report(

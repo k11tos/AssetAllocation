@@ -168,13 +168,13 @@ def test_main_succeeds_when_haa_and_kaw_succeed(monkeypatch, main_module):
     )
 
     run_selected_mock.assert_called_once_with(["HAA", "KAW"], "main")
-    info_message_mock.assert_not_called()
-    info_messages_mock.assert_called_once()
-    report_messages = info_messages_mock.call_args_list[0].args[0]
-    assert report_messages[0].startswith("📊 자산 배분 리포트 ")
-    assert "✅ 성공률 100.0% (2/2)" in report_messages[0]
-    assert report_messages[1] == "[HAA]\n- SPY 25.00%"
-    assert report_messages[2] == "[KAW]\n- TIGER S&P500 25.00%"
+    info_messages_mock.assert_not_called()
+    info_message_mock.assert_called_once()
+    report_message = info_message_mock.call_args_list[0].args[0]
+    assert report_message.startswith("📊 자산 배분 리포트 ")
+    assert "\n\n✅ 성공률 100.0% (2/2)\n\n" in report_message
+    assert "[HAA]\n- SPY 25.00%" in report_message
+    assert "[KAW]\n- TIGER S&P500 25.00%" in report_message
     performance_monitor.log_summary.assert_called_once()
 
 
@@ -189,11 +189,11 @@ def test_main_continues_when_haa_fails_and_kaw_succeeds(monkeypatch, main_module
         )
     )
 
-    info_message_mock.assert_not_called()
-    report_messages = info_messages_mock.call_args_list[0].args[0]
-    assert "✅ 성공률 50.0% (1/2)" in report_messages[0]
-    assert len(report_messages) == 2
-    assert report_messages[1] == "[KAW]\n- TIGER S&P500 50.00%"
+    info_messages_mock.assert_not_called()
+    report_message = info_message_mock.call_args_list[0].args[0]
+    assert "✅ 성공률 50.0% (1/2)" in report_message
+    assert "[HAA]" not in report_message
+    assert "[KAW]\n- TIGER S&P500 50.00%" in report_message
     performance_monitor.log_summary.assert_called_once()
 
 
@@ -208,11 +208,11 @@ def test_main_continues_when_haa_succeeds_and_kaw_fails(monkeypatch, main_module
         )
     )
 
-    info_message_mock.assert_not_called()
-    report_messages = info_messages_mock.call_args_list[0].args[0]
-    assert "✅ 성공률 50.0% (1/2)" in report_messages[0]
-    assert len(report_messages) == 2
-    assert report_messages[1] == "[HAA]\n- SPY 50.00%"
+    info_messages_mock.assert_not_called()
+    report_message = info_message_mock.call_args_list[0].args[0]
+    assert "✅ 성공률 50.0% (1/2)" in report_message
+    assert "[HAA]\n- SPY 50.00%" in report_message
+    assert "[KAW]" not in report_message
     performance_monitor.log_summary.assert_called_once()
 
 
@@ -401,17 +401,16 @@ def test_main_reports_compact_diff_in_info_messages(
         main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
     )
 
-    _, info_messages_mock, _, _ = _run_main_with_strategy_results(
+    info_message_mock, info_messages_mock, _, _ = _run_main_with_strategy_results(
         monkeypatch,
         main_module,
         haa_result={"SPY": 50.0, "IEF": 50.0},
         kaw_result={"TIGER S&P500": 100.0},
     )
 
-    emitted_messages = info_messages_mock.call_args_list[0].args[0]
-    assert len(emitted_messages) == 4
-    assert emitted_messages[0].startswith("📊 자산 배분 리포트 ")
-    assert emitted_messages[-1].startswith("🔄 변경 사항\n1개 전략 변경 / 2개 항목 변경")
+    info_messages_mock.assert_not_called()
+    emitted_message = info_message_mock.call_args_list[0].args[0]
+    assert "🔄 변경 사항\n1개 전략 변경 / 2개 항목 변경" in emitted_message
 
 
 def test_main_skips_compact_diff_message_when_no_changes(
@@ -443,17 +442,17 @@ def test_main_skips_compact_diff_message_when_no_changes(
         main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
     )
 
-    _, info_messages_mock, _, _ = _run_main_with_strategy_results(
+    info_message_mock, info_messages_mock, _, _ = _run_main_with_strategy_results(
         monkeypatch,
         main_module,
         haa_result={"SPY": 50.0},
         kaw_result={"TIGER S&P500": 50.0},
     )
 
-    emitted_messages = info_messages_mock.call_args_list[0].args[0]
-    assert len(emitted_messages) == 3
-    assert all("🔄 변경 사항" not in message for message in emitted_messages)
-    assert all("Scheduled diff:" not in message for message in emitted_messages)
+    info_messages_mock.assert_not_called()
+    emitted_message = info_message_mock.call_args_list[0].args[0]
+    assert "🔄 변경 사항" not in emitted_message
+    assert "Scheduled diff:" not in emitted_message
 
 
 def test_main_continues_when_previous_snapshot_is_malformed_but_loadable(
@@ -628,6 +627,73 @@ def test_build_telegram_report_messages_orders_header_strategy_and_diff(main_mod
     assert messages[3] == "🔄 변경 사항\n- HAA: +BIL, -CASH"
 
 
+def test_should_use_multimessage_fallback_threshold(main_module):
+    assert not main_module.should_use_multimessage_fallback("short")
+    assert main_module.should_use_multimessage_fallback(
+        "x" * (main_module.TELEGRAM_SINGLE_MESSAGE_SAFE_MAX_LENGTH + 1)
+    )
+
+
+def test_main_uses_multimessage_fallback_only_when_threshold_exceeded(
+    monkeypatch, main_module
+):
+    monkeypatch.setattr(main_module, "TELEGRAM_SINGLE_MESSAGE_SAFE_MAX_LENGTH", 10)
+    _, info_messages_mock, _, _ = _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 50.0},
+        kaw_result={"TIGER S&P500": 50.0},
+    )
+
+    info_messages_mock.assert_called_once()
+    emitted_messages = info_messages_mock.call_args_list[0].args[0]
+    assert emitted_messages[0].startswith("📊 자산 배분 리포트 ")
+    assert emitted_messages[1] == "[HAA]\n- SPY 25.00%"
+    assert emitted_messages[2] == "[KAW]\n- TIGER S&P500 25.00%"
+
+
+def test_main_fallback_orders_diff_last_when_present(
+    monkeypatch, main_module, tmp_path
+):
+    output_dir = tmp_path / "outputs"
+    history_dir = output_dir / "history"
+    latest_path = output_dir / "latest.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    latest_path.write_text(
+        json.dumps(
+            {
+                "timestamp": "2026-01-01T00:00:00",
+                "strategies": {
+                    "HAA": {"SPY": 60.0, "IEF": 40.0},
+                    "KAW": {"TIGER S&P500": 100.0},
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(main_module, "SCHEDULED_OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(main_module, "SCHEDULED_HISTORY_DIR", str(history_dir))
+    monkeypatch.setattr(
+        main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
+    )
+    monkeypatch.setattr(main_module, "TELEGRAM_SINGLE_MESSAGE_SAFE_MAX_LENGTH", 10)
+
+    _, info_messages_mock, _, _ = _run_main_with_strategy_results(
+        monkeypatch,
+        main_module,
+        haa_result={"SPY": 50.0, "IEF": 50.0},
+        kaw_result={"TIGER S&P500": 100.0},
+    )
+
+    emitted_messages = info_messages_mock.call_args_list[0].args[0]
+    assert emitted_messages[0].startswith("📊 자산 배분 리포트 ")
+    assert emitted_messages[1].startswith("[HAA]\n")
+    assert emitted_messages[2].startswith("[KAW]\n")
+    assert emitted_messages[-1].startswith("🔄 변경 사항\n1개 전략 변경 / 2개 항목 변경")
+
+
 def test_format_compact_diff_for_telegram_renders_separate_section(main_module):
     compact_summary = (
         "Scheduled diff: 1 strategies changed, 2 allocation entries changed\n"
@@ -659,16 +725,16 @@ def test_format_compact_diff_for_telegram_preserves_blank_line_before_details(
 
 
 def test_main_emits_success_line_immediately_after_header(monkeypatch, main_module):
-    _, info_messages_mock, _, _ = _run_main_with_strategy_results(
+    info_message_mock, _, _, _ = _run_main_with_strategy_results(
         monkeypatch,
         main_module,
         haa_result={"SPY": 50.0},
         kaw_result={"TIGER S&P500": 50.0},
     )
 
-    header_message = info_messages_mock.call_args_list[0].args[0][0]
-    assert header_message.startswith("📊 자산 배분 리포트 ")
-    assert "\n✅ 성공률 100.0% (2/2)" in header_message
+    report_message = info_message_mock.call_args_list[0].args[0]
+    assert report_message.startswith("📊 자산 배분 리포트 ")
+    assert "\n\n✅ 성공률 100.0% (2/2)\n\n" in report_message
 
 
 def test_format_compact_weekday_returns_short_name(main_module):

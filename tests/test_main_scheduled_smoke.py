@@ -112,11 +112,11 @@ def test_main_scheduled_smoke_success_offline(monkeypatch, main_module):
     main_module.load_tickers.assert_called_once_with()
     main_module.run_selected_strategies.assert_called_once_with(["HAA", "KAW"], "main")
 
-    info_message_mock.assert_not_called()
-    info_messages_mock.assert_called_once()
-    emitted_messages = info_messages_mock.call_args_list[0].args[0]
-    assert emitted_messages[0] == "📊 자산 배분 리포트 2026-01-15 (Thu)\n✅ 성공률 100.0% (2/2)"
-    assert emitted_messages[1] == "[HAA]\n- SPY 30.00%\n- QQQ 20.00%"
-    assert emitted_messages[2] == "[KAW]\n- TIGER S&P500 50.00%"
+    info_messages_mock.assert_not_called()
+    info_message_mock.assert_called_once()
+    emitted_message = info_message_mock.call_args_list[0].args[0]
+    assert emitted_message.startswith("📊 자산 배분 리포트 2026-01-15 (Thu)\n\n")
+    assert "\n\n✅ 성공률 100.0% (2/2)\n\n[HAA]\n" in emitted_message
+    assert "\n\n[KAW]\n- TIGER S&P500 50.00%" in emitted_message
 
     performance_monitor.log_summary.assert_called_once_with()
