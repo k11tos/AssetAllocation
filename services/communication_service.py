@@ -134,7 +134,10 @@ class CommunicationService:
 
         # HTML 태그를 보존하면서 sanitize
         sanitized_message = self.security_manager.sanitize_input(
-            message, max_length=4000, allow_html=True
+            message,
+            max_length=4000,
+            allow_html=True,
+            preserve_linebreaks=True,
         )
         if not sanitized_message:
             LOGGER.warning("⚠️ Message sanitization resulted in empty message")
