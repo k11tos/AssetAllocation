@@ -109,6 +109,14 @@ class CommunicationService:
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
 
+    @staticmethod
+    def _message_preview(message: str, max_length: int = 80) -> str:
+        """로그 출력용 안전한 메시지 미리보기 문자열을 반환합니다."""
+        normalized = message.replace("\n", "\\n")
+        if len(normalized) <= max_length:
+            return normalized
+        return f"{normalized[:max_length]}..."
+
     def send_message(self, message: str) -> bool:
         """
         텔레그램으로 메시지를 전송합니다.
@@ -143,6 +151,16 @@ class CommunicationService:
             # 동기 방식으로 메시지 전송 (requests 사용)
             bot_token = self.telegram_account["bot"].token
             chat_id = self.telegram_account["chat_id"]
+            message_thread_id = API_CONFIG.TELEGRAM_MESSAGE_THREAD_ID or None
+
+            LOGGER.debug(
+                "📨 Telegram send attempt payload_type=single "
+                "total_messages=1 message_index=1/1 chat_id=%s "
+                "message_thread_id=%s preview='%s'",
+                chat_id,
+                message_thread_id,
+                self._message_preview(sanitized_message),
+            )
 
             url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
             data = {
@@ -150,6 +168,8 @@ class CommunicationService:
                 "text": sanitized_message,
                 "parse_mode": None,
             }
+            if message_thread_id is not None:
+                data["message_thread_id"] = message_thread_id
 
             headers = {"User-Agent": "AssetAllocationBot/1.0"}
 
@@ -157,9 +177,16 @@ class CommunicationService:
                 url, data=data, headers=headers, timeout=30
             )
             response.raise_for_status()
+            response_payload = response.json()
+            result_payload = response_payload.get("result", {})
+            result_chat = result_payload.get("chat", {})
 
             LOGGER.debug(
-                f"📤 Message sent successfully: {sanitized_message[:50]}..."
+                "📤 Telegram send success message_id=%s chat.id=%s "
+                "chat.type=%s",
+                result_payload.get("message_id"),
+                result_chat.get("id"),
+                result_chat.get("type"),
             )
             log_security_event(
                 "MESSAGE_SENT",
@@ -168,7 +195,13 @@ class CommunicationService:
             return True
 
         except Exception as error:
-            LOGGER.error(f"Failed to send Telegram message: {str(error)}")
+            LOGGER.exception(
+                "Failed to send Telegram message chat_id=%s "
+                "message_thread_id=%s preview='%s'",
+                self.telegram_account.get("chat_id"),
+                API_CONFIG.TELEGRAM_MESSAGE_THREAD_ID or None,
+                self._message_preview(sanitized_message),
+            )
             log_security_event(
                 "MESSAGE_FAILED",
                 f"Failed to send message: {str(error)}",
@@ -189,9 +222,41 @@ class CommunicationService:
             LOGGER.warning("⚠️ Empty messages payload")
             return False
 
-        for message in messages:
-            if not self.send_message(message):
-                return False
+        total_messages = len(messages)
+        chat_id = (
+            self.telegram_account.get("chat_id")
+            if self.telegram_account is not None
+            else None
+        )
+        message_thread_id = API_CONFIG.TELEGRAM_MESSAGE_THREAD_ID or None
+
+        for index, message in enumerate(messages, start=1):
+            LOGGER.debug(
+                "📨 Telegram send attempt payload_type=list "
+                "total_messages=%s message_index=%s/%s chat_id=%s "
+                "message_thread_id=%s preview='%s'",
+                total_messages,
+                index,
+                total_messages,
+                chat_id,
+                message_thread_id,
+                self._message_preview(message),
+            )
+            try:
+                if not self.send_message(message):
+                    LOGGER.error(
+                        "Telegram multi-send failed at message_index=%s/%s",
+                        index,
+                        total_messages,
+                    )
+                    return False
+            except Exception:
+                LOGGER.exception(
+                    "Telegram multi-send raised at message_index=%s/%s",
+                    index,
+                    total_messages,
+                )
+                raise
         return True
 
     def get_telegram_bot(

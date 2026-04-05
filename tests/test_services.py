@@ -389,6 +389,12 @@ class TestCommunicationService(unittest.TestCase):
         with patch.object(service.session, "post") as mock_post:
             mock_response = Mock()
             mock_response.raise_for_status.return_value = None
+            mock_response.json.return_value = {
+                "result": {
+                    "message_id": 101,
+                    "chat": {"id": 123456789, "type": "private"},
+                }
+            }
             mock_post.return_value = mock_response
 
             result = service.send_message("Test message")
@@ -422,6 +428,34 @@ class TestCommunicationService(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertEqual(mock_send.call_count, 2)
+        self.assertEqual(
+            [call.args[0] for call in mock_send.call_args_list],
+            ["line1", "line2"],
+        )
+
+    @patch("services.communication_service.telegram.Bot")
+    def test_send_message_single_string_input_makes_one_send_call(
+        self, mock_bot_class
+    ):
+        """문자열 단일 입력은 Telegram API 호출을 한 번만 수행해야 함"""
+        mock_bot_class.return_value = Mock()
+        service = CommunicationService()
+
+        with patch.object(service.session, "post") as mock_post:
+            mock_response = Mock()
+            mock_response.raise_for_status.return_value = None
+            mock_response.json.return_value = {
+                "result": {
+                    "message_id": 201,
+                    "chat": {"id": 123456789, "type": "private"},
+                }
+            }
+            mock_post.return_value = mock_response
+
+            result = service.send_message("single payload")
+
+        self.assertTrue(result)
+        mock_post.assert_called_once()
 
     @patch("services.communication_service.telegram.Bot")
     def test_send_messages_fail_fast_on_first_failure(self, mock_bot_class):
@@ -445,6 +479,35 @@ class TestCommunicationService(unittest.TestCase):
 
         result = service.send_messages("not-a-list")
         self.assertFalse(result)
+
+    @patch("services.communication_service.telegram.Bot")
+    def test_send_messages_logs_and_reraises_late_exception(
+        self, mock_bot_class
+    ):
+        """후속 메시지 예외는 로그에 남기고 다시 발생시켜야 함"""
+        mock_bot_class.return_value = Mock()
+        service = CommunicationService()
+
+        with patch.object(
+            service,
+            "send_message",
+            side_effect=[True, RuntimeError("boom on second message")],
+        ):
+            with self.assertLogs(
+                "services.communication_service", level="ERROR"
+            ) as captured_logs:
+                with self.assertRaises(RuntimeError):
+                    service.send_messages(["line1", "line2"])
+
+        self.assertTrue(
+            any(
+                "Telegram multi-send raised at message_index=2/2" in log
+                for log in captured_logs.output
+            )
+        )
+        self.assertTrue(
+            any("boom on second message" in log for log in captured_logs.output)
+        )
 
     def test_get_telegram_bot_invalid_mode(self):
         """잘못된 모드로 봇 가져오기 테스트"""

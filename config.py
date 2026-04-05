@@ -257,6 +257,9 @@ class APIConfig:
     FRED_API_KEY: str = os.getenv("FRED_API_KEY", "")
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
+    TELEGRAM_MESSAGE_THREAD_ID: str = os.getenv(
+        "TELEGRAM_MESSAGE_THREAD_ID", ""
+    )
     FALLBACK_FILE: str = "portfolio.txt"
 
 
