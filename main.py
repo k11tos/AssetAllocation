@@ -29,6 +29,7 @@ from portfolio import (
     get_hybrid_asset_allocation,
     get_korean_all_weather_allocation,
     print_info_message,
+    print_info_messages,
 )
 from strategy_runner import run_selected_strategies
 from utils.logging_config import LoggingConfig
@@ -40,6 +41,7 @@ LOGGER = LoggingConfig.get_logger(__name__)
 SCHEDULED_OUTPUT_DIR = "outputs"
 SCHEDULED_LATEST_RESULT_PATH = os.path.join(SCHEDULED_OUTPUT_DIR, "latest.json")
 SCHEDULED_HISTORY_DIR = os.path.join(SCHEDULED_OUTPUT_DIR, "history")
+TELEGRAM_SINGLE_MESSAGE_SAFE_MAX_LENGTH = 3500
 
 _COMPACT_WEEKDAY = {
     0: "Mon",
@@ -221,18 +223,28 @@ def main() -> None:
         else:
             LOGGER.warning("⚠️ KAW strategy failed - skipping output")
 
-        print_info_message(
-            build_telegram_report_message(
+        compact_diff_section = get_compact_diff_section_for_report(strategy_results)
+        report_message = build_telegram_report_message(
+            current_date=current_date,
+            success_rate=success_rate,
+            successful_strategies=successful_strategies,
+            total_number_of_strategy=total_number_of_strategy,
+            strategy_sections=strategy_sections,
+            compact_diff_section=compact_diff_section,
+        )
+
+        if should_use_multimessage_fallback(report_message):
+            report_messages = build_telegram_report_messages(
                 current_date=current_date,
                 success_rate=success_rate,
                 successful_strategies=successful_strategies,
                 total_number_of_strategy=total_number_of_strategy,
                 strategy_sections=strategy_sections,
-                compact_diff_section=get_compact_diff_section_for_report(
-                    strategy_results
-                ),
+                compact_diff_section=compact_diff_section,
             )
-        )
+            print_info_messages(report_messages)
+        else:
+            print_info_message(report_message)
 
         LOGGER.info(
             "✅ Asset allocation process completed. "
@@ -377,6 +389,34 @@ def build_telegram_report_message(
     if compact_diff_section:
         sections.append(compact_diff_section)
     return "\n\n".join(sections)
+
+
+def build_telegram_report_messages(
+    current_date: date,
+    success_rate: float,
+    successful_strategies: int,
+    total_number_of_strategy: int,
+    strategy_sections: List[str],
+    compact_diff_section: Optional[str] = None,
+) -> List[str]:
+    """Build ordered Telegram messages for safe multi-message report delivery."""
+    header_message = (
+        "📊 자산 배분 리포트 "
+        f"{current_date.isoformat()} ({format_compact_weekday(current_date)})\n"
+        f"✅ 성공률 {success_rate:.1f}% "
+        f"({successful_strategies}/{total_number_of_strategy})"
+    )
+
+    messages = [header_message]
+    messages.extend(section for section in strategy_sections if section)
+    if compact_diff_section:
+        messages.append(compact_diff_section)
+    return messages
+
+
+def should_use_multimessage_fallback(report_message: str) -> bool:
+    """Return True when single-message delivery is likely unsafe for Telegram."""
+    return len(report_message) > TELEGRAM_SINGLE_MESSAGE_SAFE_MAX_LENGTH
 
 
 def get_compact_diff_section_for_report(
