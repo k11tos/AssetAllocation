@@ -189,30 +189,39 @@ def main() -> None:
         successful_strategies = int(bool(haa_result)) + int(bool(kaw_result))
         success_rate = (successful_strategies / total_number_of_strategy) * 100
 
-        print_info_message(
+        report_sections = [
             "📊 자산 배분 리포트 | "
-            f"{current_date.isoformat()} ({format_compact_weekday(current_date)})"
-        )
-        print_info_message(
-            f"✅ 성공률 {success_rate:.1f}% "
-            f"({successful_strategies}/{total_number_of_strategy})"
-        )
+            f"{current_date.isoformat()} ({format_compact_weekday(current_date)})",
+            (
+                f"✅ 성공률 {success_rate:.1f}% "
+                f"({successful_strategies}/{total_number_of_strategy})"
+            ),
+        ]
 
         # HAA 전략 실행
         if haa_result:
-            print_asset_allocation(
-                haa_result, etf_descriptions, total_number_of_strategy, "[HAA]"
+            report_sections.append(
+                print_asset_allocation(
+                    haa_result,
+                    etf_descriptions,
+                    total_number_of_strategy,
+                    "[HAA]",
+                )
             )
         else:
             LOGGER.warning("⚠️ HAA strategy failed - skipping output")
 
         # 한국형 올웨더 전략 (항상 실행)
         if kaw_result:
-            print_asset_allocation(
-                kaw_result, None, total_number_of_strategy, "[KAW]"
+            report_sections.append(
+                print_asset_allocation(
+                    kaw_result, None, total_number_of_strategy, "[KAW]"
+                )
             )
         else:
             LOGGER.warning("⚠️ KAW strategy failed - skipping output")
+
+        print_info_message("\n\n".join(report_sections))
 
         LOGGER.info(
             "✅ Asset allocation process completed. "
@@ -319,7 +328,7 @@ def print_asset_allocation(
     etf_descriptions: Optional[Dict[str, str]],
     total_number_of_strategy: int,
     strategy_name: str,
-) -> None:
+) -> str:
     """
     Print asset allocation results with enhanced Telegram formatting
     :param asset_allocation: Dictionary with asset allocation
@@ -329,8 +338,7 @@ def print_asset_allocation(
     :return: None
     """
 
-    strategy_display_name = strategy_name.replace("[", "").replace("]", "")
-    allocations = [strategy_display_name]
+    allocations = [strategy_name]
 
     for key, value in asset_allocation.items():
         percentage = round(value / total_number_of_strategy, 2)
@@ -339,7 +347,7 @@ def print_asset_allocation(
         )
         allocations.append(f"- {display_name} {percentage:.2f}%")
 
-    print_info_message("\n".join(allocations))
+    return "\n".join(allocations)
 
 
 def format_compact_diff_for_telegram(compact_summary: str) -> str:
