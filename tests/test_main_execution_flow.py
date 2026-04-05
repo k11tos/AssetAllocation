@@ -86,7 +86,6 @@ def main_module(monkeypatch):
 def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_result):
     """Run main.main() with deterministic strategy outcomes and return mocks."""
     info_message_mock = Mock()
-    print_allocation_mock = Mock()
     performance_monitor = Mock()
     if main_module.SCHEDULED_LATEST_RESULT_PATH == "outputs/latest.json":
         output_root = tempfile.mkdtemp(prefix="scheduled-main-test-")
@@ -105,11 +104,6 @@ def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_re
     monkeypatch.setattr(main_module, "validate_config", lambda: True)
     monkeypatch.setattr(main_module, "load_tickers", lambda: ["SPY", "QQQ"])
     monkeypatch.setattr(main_module, "print_info_message", info_message_mock)
-    monkeypatch.setattr(
-        main_module,
-        "print_asset_allocation",
-        print_allocation_mock,
-    )
     monkeypatch.setattr(
         main_module,
         "get_performance_monitor",
@@ -136,7 +130,6 @@ def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_re
     main_module.main()
     return (
         info_message_mock,
-        print_allocation_mock,
         performance_monitor,
         run_selected_mock,
     )
@@ -161,7 +154,7 @@ def test_main_exits_when_validate_config_fails(monkeypatch, main_module):
 
 def test_main_succeeds_when_haa_and_kaw_succeed(monkeypatch, main_module):
     """Both strategies succeed -> normal completion and 100% summary."""
-    info_message_mock, print_allocation_mock, performance_monitor, run_selected_mock = (
+    info_message_mock, performance_monitor, run_selected_mock = (
         _run_main_with_strategy_results(
             monkeypatch,
             main_module,
@@ -170,18 +163,19 @@ def test_main_succeeds_when_haa_and_kaw_succeed(monkeypatch, main_module):
         )
     )
 
-    assert print_allocation_mock.call_count == 2
     run_selected_mock.assert_called_once_with(["HAA", "KAW"], "main")
-    assert info_message_mock.call_args_list[0].args[0].startswith(
-        "📊 자산 배분 리포트 | "
-    )
-    assert info_message_mock.call_args_list[1].args[0] == "✅ 성공률 100.0% (2/2)"
+    assert info_message_mock.call_count == 1
+    rendered_report = info_message_mock.call_args_list[0].args[0]
+    assert rendered_report.startswith("📊 자산 배분 리포트 | ")
+    assert "✅ 성공률 100.0% (2/2)" in rendered_report
+    assert "\n\n[HAA]\n- SPY 25.00%" in rendered_report
+    assert "\n\n[KAW]\n- TIGER S&P500 25.00%" in rendered_report
     performance_monitor.log_summary.assert_called_once()
 
 
 def test_main_continues_when_haa_fails_and_kaw_succeeds(monkeypatch, main_module):
     """HAA fails and KAW succeeds -> process continues and succeeds overall."""
-    info_message_mock, print_allocation_mock, performance_monitor, _ = (
+    info_message_mock, performance_monitor, _ = (
         _run_main_with_strategy_results(
             monkeypatch,
             main_module,
@@ -190,14 +184,16 @@ def test_main_continues_when_haa_fails_and_kaw_succeeds(monkeypatch, main_module
         )
     )
 
-    assert print_allocation_mock.call_count == 1
-    assert info_message_mock.call_args_list[1].args[0] == "✅ 성공률 50.0% (1/2)"
+    rendered_report = info_message_mock.call_args_list[0].args[0]
+    assert "✅ 성공률 50.0% (1/2)" in rendered_report
+    assert "[HAA]" not in rendered_report
+    assert "[KAW]" in rendered_report
     performance_monitor.log_summary.assert_called_once()
 
 
 def test_main_continues_when_haa_succeeds_and_kaw_fails(monkeypatch, main_module):
     """HAA succeeds and KAW fails -> process continues and succeeds overall."""
-    info_message_mock, print_allocation_mock, performance_monitor, _ = (
+    info_message_mock, performance_monitor, _ = (
         _run_main_with_strategy_results(
             monkeypatch,
             main_module,
@@ -206,8 +202,10 @@ def test_main_continues_when_haa_succeeds_and_kaw_fails(monkeypatch, main_module
         )
     )
 
-    assert print_allocation_mock.call_count == 1
-    assert info_message_mock.call_args_list[1].args[0] == "✅ 성공률 50.0% (1/2)"
+    rendered_report = info_message_mock.call_args_list[0].args[0]
+    assert "✅ 성공률 50.0% (1/2)" in rendered_report
+    assert "[HAA]" in rendered_report
+    assert "[KAW]" not in rendered_report
     performance_monitor.log_summary.assert_called_once()
 
 
@@ -224,7 +222,6 @@ def test_main_exits_when_all_strategies_fail(
     monkeypatch.setattr(main_module, "validate_config", lambda: True)
     monkeypatch.setattr(main_module, "load_tickers", lambda: ["SPY"])
     monkeypatch.setattr(main_module, "print_info_message", info_message_mock)
-    monkeypatch.setattr(main_module, "print_asset_allocation", Mock())
     monkeypatch.setattr(main_module, "execute_haa_strategy", Mock(return_value=None))
     monkeypatch.setattr(main_module, "execute_kaw_strategy", Mock(return_value=None))
     monkeypatch.setattr(
@@ -242,7 +239,7 @@ def test_main_exits_when_all_strategies_fail(
         main_module.main()
 
     assert exc.value.code == 1
-    assert info_message_mock.call_args_list[1].args[0] == "✅ 성공률 0.0% (0/2)"
+    assert "✅ 성공률 0.0% (0/2)" in info_message_mock.call_args_list[0].args[0]
     performance_monitor.log_summary.assert_called_once()
     assert not latest_snapshot.exists()
     assert not list(history_snapshot_dir.glob("*.json"))
@@ -365,7 +362,7 @@ def test_main_logs_diff_when_previous_snapshot_exists(
 def test_main_reports_compact_diff_in_info_messages(
     monkeypatch, main_module, tmp_path
 ):
-    """Scheduled run surfaces a compact diff summary in regular message flow."""
+    """Scheduled run appends compact diff into the single consolidated message."""
     output_dir = tmp_path / "outputs"
     history_dir = output_dir / "history"
     latest_path = output_dir / "latest.json"
@@ -391,21 +388,21 @@ def test_main_reports_compact_diff_in_info_messages(
         main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
     )
 
-    info_message_mock, _, _, _ = _run_main_with_strategy_results(
+    info_message_mock, _, _ = _run_main_with_strategy_results(
         monkeypatch,
         main_module,
         haa_result={"SPY": 50.0, "IEF": 50.0},
         kaw_result={"TIGER S&P500": 100.0},
     )
 
-    emitted_messages = [call.args[0] for call in info_message_mock.call_args_list]
-    compact_messages = [
-        message
-        for message in emitted_messages
-        if message.startswith("🔄 변경 사항")
-    ]
-    assert len(compact_messages) == 1
-    assert "1개 전략 변경 / 2개 항목 변경" in compact_messages[0]
+    assert info_message_mock.call_count == 1
+    rendered_report = info_message_mock.call_args_list[0].args[0]
+    assert rendered_report.startswith("📊 자산 배분 리포트 | ")
+    assert "✅ 성공률 100.0% (2/2)" in rendered_report
+    assert "[HAA]" in rendered_report
+    assert "[KAW]" in rendered_report
+    assert "🔄 변경 사항" in rendered_report
+    assert "1개 전략 변경 / 2개 항목 변경" in rendered_report
 
 
 def test_main_skips_compact_diff_message_when_no_changes(
@@ -437,7 +434,7 @@ def test_main_skips_compact_diff_message_when_no_changes(
         main_module, "SCHEDULED_LATEST_RESULT_PATH", str(latest_path)
     )
 
-    info_message_mock, _, _, _ = _run_main_with_strategy_results(
+    info_message_mock, _, _ = _run_main_with_strategy_results(
         monkeypatch,
         main_module,
         haa_result={"SPY": 50.0},
@@ -539,19 +536,16 @@ def test_main_saves_snapshot_even_when_diff_formatting_fails(
 
 
 def test_print_asset_allocation_emits_grouped_strategy_block(monkeypatch, main_module):
-    """Strategy allocation message should be grouped into one readable block."""
-    info_message_mock = Mock()
-    monkeypatch.setattr(main_module, "print_info_message", info_message_mock)
-
-    main_module.print_asset_allocation(
+    """Strategy allocation formatter should return one readable block string."""
+    rendered = main_module.print_asset_allocation(
         {"SPY": 100.0, "QQQ": 50.0},
         {"SPY": "S&P 500", "QQQ": "NASDAQ 100"},
         2,
         "[HAA]",
     )
 
-    info_message_mock.assert_called_once_with(
-        "HAA\n- S&P 500 50.00%\n- NASDAQ 100 25.00%"
+    assert rendered == (
+        "[HAA]\n- S&P 500 50.00%\n- NASDAQ 100 25.00%"
     )
 
 
@@ -573,16 +567,17 @@ def test_format_compact_diff_for_telegram_no_diff_case_is_clean(main_module):
 
 
 def test_main_emits_success_line_immediately_after_header(monkeypatch, main_module):
-    info_message_mock, _, _, _ = _run_main_with_strategy_results(
+    info_message_mock, _, _ = _run_main_with_strategy_results(
         monkeypatch,
         main_module,
         haa_result={"SPY": 50.0},
         kaw_result={"TIGER S&P500": 50.0},
     )
 
-    emitted_messages = [call.args[0] for call in info_message_mock.call_args_list]
-    assert emitted_messages[0].startswith("📊 자산 배분 리포트 | ")
-    assert emitted_messages[1] == "✅ 성공률 100.0% (2/2)"
+    rendered_report = info_message_mock.call_args_list[0].args[0]
+    report_lines = rendered_report.splitlines()
+    assert report_lines[0].startswith("📊 자산 배분 리포트 | ")
+    assert report_lines[2] == "✅ 성공률 100.0% (2/2)"
 
 
 def test_format_compact_weekday_returns_short_name(main_module):
