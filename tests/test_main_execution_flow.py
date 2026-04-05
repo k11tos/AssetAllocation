@@ -362,7 +362,7 @@ def test_main_logs_diff_when_previous_snapshot_exists(
 def test_main_reports_compact_diff_in_info_messages(
     monkeypatch, main_module, tmp_path
 ):
-    """Scheduled run surfaces a compact diff summary in regular message flow."""
+    """Scheduled run appends compact diff into the single consolidated message."""
     output_dir = tmp_path / "outputs"
     history_dir = output_dir / "history"
     latest_path = output_dir / "latest.json"
@@ -395,14 +395,14 @@ def test_main_reports_compact_diff_in_info_messages(
         kaw_result={"TIGER S&P500": 100.0},
     )
 
-    emitted_messages = [call.args[0] for call in info_message_mock.call_args_list]
-    compact_messages = [
-        message
-        for message in emitted_messages
-        if message.startswith("🔄 변경 사항")
-    ]
-    assert len(compact_messages) == 1
-    assert "1개 전략 변경 / 2개 항목 변경" in compact_messages[0]
+    assert info_message_mock.call_count == 1
+    rendered_report = info_message_mock.call_args_list[0].args[0]
+    assert rendered_report.startswith("📊 자산 배분 리포트 | ")
+    assert "✅ 성공률 100.0% (2/2)" in rendered_report
+    assert "[HAA]" in rendered_report
+    assert "[KAW]" in rendered_report
+    assert "🔄 변경 사항" in rendered_report
+    assert "1개 전략 변경 / 2개 항목 변경" in rendered_report
 
 
 def test_main_skips_compact_diff_message_when_no_changes(

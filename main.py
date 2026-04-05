@@ -221,8 +221,6 @@ def main() -> None:
         else:
             LOGGER.warning("⚠️ KAW strategy failed - skipping output")
 
-        print_info_message("\n\n".join(report_sections))
-
         LOGGER.info(
             "✅ Asset allocation process completed. "
             "%d/%d strategies executed successfully",
@@ -235,13 +233,18 @@ def main() -> None:
         performance_monitor.log_summary()
 
         if successful_strategies == 0:
+            print_info_message("\n\n".join(report_sections))
             LOGGER.error(
                 "❌ All strategies failed - no allocation recommendations "
                 "generated"
             )
             sys.exit(1)
 
-        persist_scheduled_execution_result(strategy_results)
+        compact_diff_section = persist_scheduled_execution_result(strategy_results)
+        if compact_diff_section:
+            report_sections.append(compact_diff_section)
+
+        print_info_message("\n\n".join(report_sections))
 
     except Exception as e:
         LoggingConfig.log_error_with_context(LOGGER, e, "main process")
@@ -250,7 +253,7 @@ def main() -> None:
 
 def persist_scheduled_execution_result(
     strategy_results: Dict[str, Optional[Dict[str, float]]],
-) -> None:
+) -> Optional[str]:
     """Save scheduled execution results and compare with previous snapshot."""
     stage_overrides = {
         "snapshot_save": {"status": "success"},
@@ -259,6 +262,7 @@ def persist_scheduled_execution_result(
             "detail": "No previous snapshot available for diff reporting",
         },
     }
+    compact_diff_section = None
     previous_result_data = None
     try:
         previous_result_data = load_execution_output_json(
@@ -286,8 +290,8 @@ def persist_scheduled_execution_result(
                 previous_result_data, strategy_results
             )
             if compact_summary:
-                print_info_message(
-                    format_compact_diff_for_telegram(compact_summary)
+                compact_diff_section = format_compact_diff_for_telegram(
+                    compact_summary
                 )
             stage_overrides["notification_reporting"] = {"status": "success"}
         except Exception as e:
@@ -321,6 +325,8 @@ def persist_scheduled_execution_result(
         )
     except Exception as e:
         LOGGER.warning("⚠️ Failed to save scheduled execution results: %s", e)
+
+    return compact_diff_section
 
 
 def print_asset_allocation(
