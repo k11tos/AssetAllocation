@@ -3,10 +3,10 @@
 Korean All-Weather strategy implementation
 """
 
-import datetime
 from typing import Any, Dict, List
 
 from config import KOREAN_ALL_WEATHER
+from execution_output import get_execution_now
 
 from .base_strategy import BaseStrategy
 
@@ -22,8 +22,8 @@ class KoreanAllWeatherStrategy(BaseStrategy):
         return []
 
     def _get_execution_month(self) -> int:
-        """전략 실행 시점의 현재 달(1~12)을 반환합니다."""
-        return datetime.datetime.now().month
+        """실행 기준 시간대(Asia/Seoul)의 현재 달(1~12)을 반환합니다."""
+        return get_execution_now().month
 
     def calculate_allocation(self, data: Dict[str, Any]) -> Dict[str, float]:
         """
