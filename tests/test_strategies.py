@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
+from config import KOREAN_ALL_WEATHER
 from strategies import (
     BAAStrategy,
     HAAStrategy,
@@ -323,11 +324,11 @@ class TestKoreanAllWeatherStrategy(unittest.TestCase):
         """필요한 데이터 키 목록 테스트"""
         self.assertEqual(self.strategy.get_required_data_keys(), [])
 
-    @patch("strategies.korean_all_weather_strategy.datetime")
-    def test_calculate_allocation_risky_period(self, mock_datetime):
+    @patch("strategies.korean_all_weather_strategy.get_execution_now")
+    def test_calculate_allocation_risky_period(self, mock_get_execution_now):
         """위험자산 중심 기간 (11~4월) 테스트"""
         # 3월 (위험자산 중심 기간)
-        mock_datetime.datetime.now.return_value = datetime(2024, 3, 15)
+        mock_get_execution_now.return_value = datetime(2024, 3, 15)
 
         result = self.strategy.calculate_allocation({})
 
@@ -337,11 +338,11 @@ class TestKoreanAllWeatherStrategy(unittest.TestCase):
         self.assertEqual(result["TIGER S&P500"], 25.0)
         self.assertEqual(result["KOSEF 200TR"], 25.0)
 
-    @patch("strategies.korean_all_weather_strategy.datetime")
-    def test_calculate_allocation_safe_period(self, mock_datetime):
+    @patch("strategies.korean_all_weather_strategy.get_execution_now")
+    def test_calculate_allocation_safe_period(self, mock_get_execution_now):
         """안전자산 중심 기간 (5~10월) 테스트"""
         # 7월 (안전자산 중심 기간)
-        mock_datetime.datetime.now.return_value = datetime(2024, 7, 15)
+        mock_get_execution_now.return_value = datetime(2024, 7, 15)
 
         result = self.strategy.calculate_allocation({})
 
@@ -350,6 +351,74 @@ class TestKoreanAllWeatherStrategy(unittest.TestCase):
         self.assertIn("KOSEF 200TR", result)
         self.assertEqual(result["TIGER S&P500"], 10.0)
         self.assertEqual(result["KOSEF 200TR"], 10.0)
+
+    @patch("strategies.korean_all_weather_strategy.get_execution_now")
+    def test_calculate_allocation_uses_april_during_april(
+        self, mock_get_execution_now
+    ):
+        """KST 4월 실행 시 4월(위험자산 중심) 전략을 사용해야 함"""
+        mock_get_execution_now.return_value = datetime(2026, 4, 6, 9, 0, 0)
+
+        result = self.strategy.calculate_allocation({})
+
+        self.assertEqual(
+            result,
+            KOREAN_ALL_WEATHER.RISKY_PERIOD_ALLOCATION,
+        )
+
+    @patch("strategies.korean_all_weather_strategy.get_execution_now")
+    def test_calculate_allocation_april_30_still_uses_april(
+        self, mock_get_execution_now
+    ):
+        """KST 4월 말 실행도 5월 선반영 없이 4월 전략이어야 함"""
+        mock_get_execution_now.return_value = datetime(2026, 4, 30, 23, 59, 59)
+
+        result = self.strategy.calculate_allocation({})
+
+        self.assertEqual(
+            result,
+            KOREAN_ALL_WEATHER.RISKY_PERIOD_ALLOCATION,
+        )
+
+    @patch("strategies.korean_all_weather_strategy.get_execution_now")
+    def test_calculate_allocation_may_1_uses_safe_period(
+        self, mock_get_execution_now
+    ):
+        """KST 5월 1일부터는 5월(안전자산 중심) 전략을 사용해야 함"""
+        mock_get_execution_now.return_value = datetime(2026, 5, 1, 0, 0, 0)
+
+        result = self.strategy.calculate_allocation({})
+
+        self.assertEqual(
+            result,
+            KOREAN_ALL_WEATHER.SAFE_PERIOD_ALLOCATION,
+        )
+
+    @patch("strategies.korean_all_weather_strategy.get_execution_now")
+    def test_calculate_allocation_november_uses_risky_period(
+        self, mock_get_execution_now
+    ):
+        """KST 11월 실행 시 11월(위험자산 중심) 전략을 사용해야 함"""
+        mock_get_execution_now.return_value = datetime(2026, 11, 10, 9, 0, 0)
+
+        result = self.strategy.calculate_allocation({})
+
+        self.assertEqual(
+            result,
+            KOREAN_ALL_WEATHER.RISKY_PERIOD_ALLOCATION,
+        )
+
+    @patch("strategies.korean_all_weather_strategy.get_execution_now")
+    def test_get_execution_month_uses_execution_timezone_source(
+        self, mock_get_execution_now
+    ):
+        """월 계산은 naive now()가 아니라 execution timezone source를 사용해야 함"""
+        mock_get_execution_now.return_value = datetime(2026, 5, 1, 0, 0, 0)
+
+        month = self.strategy._get_execution_month()
+
+        self.assertEqual(month, 5)
+        mock_get_execution_now.assert_called_once_with()
 
     def test_validate_data(self):
         """데이터 유효성 검증 테스트"""
