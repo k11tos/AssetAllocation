@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
+from config import KOREAN_ALL_WEATHER
 from strategies import (
     BAAStrategy,
     HAAStrategy,
@@ -350,6 +351,54 @@ class TestKoreanAllWeatherStrategy(unittest.TestCase):
         self.assertIn("KOSEF 200TR", result)
         self.assertEqual(result["TIGER S&P500"], 10.0)
         self.assertEqual(result["KOSEF 200TR"], 10.0)
+
+    @patch.object(KoreanAllWeatherStrategy, "_get_execution_month")
+    def test_calculate_allocation_uses_april_during_april(self, mock_month):
+        """4월 실행 시 4월(위험자산 중심) 전략을 사용해야 함"""
+        mock_month.return_value = 4
+
+        result = self.strategy.calculate_allocation({})
+
+        self.assertEqual(
+            result,
+            KOREAN_ALL_WEATHER.RISKY_PERIOD_ALLOCATION,
+        )
+
+    @patch.object(KoreanAllWeatherStrategy, "_get_execution_month")
+    def test_calculate_allocation_april_30_still_uses_april(self, mock_month):
+        """4월 말 실행도 5월 선반영 없이 4월 전략이어야 함"""
+        mock_month.return_value = 4
+
+        result = self.strategy.calculate_allocation({})
+
+        self.assertEqual(
+            result,
+            KOREAN_ALL_WEATHER.RISKY_PERIOD_ALLOCATION,
+        )
+
+    @patch.object(KoreanAllWeatherStrategy, "_get_execution_month")
+    def test_calculate_allocation_may_1_uses_safe_period(self, mock_month):
+        """5월 1일부터는 5월(안전자산 중심) 전략을 사용해야 함"""
+        mock_month.return_value = 5
+
+        result = self.strategy.calculate_allocation({})
+
+        self.assertEqual(
+            result,
+            KOREAN_ALL_WEATHER.SAFE_PERIOD_ALLOCATION,
+        )
+
+    @patch.object(KoreanAllWeatherStrategy, "_get_execution_month")
+    def test_calculate_allocation_november_uses_risky_period(self, mock_month):
+        """11월 실행 시 11월(위험자산 중심) 전략을 사용해야 함"""
+        mock_month.return_value = 11
+
+        result = self.strategy.calculate_allocation({})
+
+        self.assertEqual(
+            result,
+            KOREAN_ALL_WEATHER.RISKY_PERIOD_ALLOCATION,
+        )
 
     def test_validate_data(self):
         """데이터 유효성 검증 테스트"""
