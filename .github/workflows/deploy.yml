@@ -72,13 +72,18 @@ jobs:
           PI_USER: ${{ secrets.PI_USER }}
           PI_PORT: ${{ secrets.PI_PORT }}
         run: |
+          set -eu
+          IMAGE_NAME_Q=$(printf '%q' "$IMAGE_NAME")
+          DEPLOY_PATH_Q=$(printf '%q' "$DEPLOY_PATH")
+          GHCR_USERNAME_Q=$(printf '%q' "$GHCR_USERNAME")
+          GHCR_TOKEN_Q=$(printf '%q' "$GHCR_TOKEN")
           ssh -p "$PI_PORT" "$PI_USER@$PI_HOST" \
-            IMAGE_NAME="$IMAGE_NAME" \
-            DEPLOY_PATH="$DEPLOY_PATH" \
-            GHCR_USERNAME="$GHCR_USERNAME" \
-            GHCR_TOKEN="$GHCR_TOKEN" \
-            'bash -se' <<'EOF'
+            'bash -se' <<EOF
             set -eu
+            export IMAGE_NAME=$IMAGE_NAME_Q
+            export DEPLOY_PATH=$DEPLOY_PATH_Q
+            export GHCR_USERNAME=$GHCR_USERNAME_Q
+            export GHCR_TOKEN=$GHCR_TOKEN_Q
             cd "$DEPLOY_PATH"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
             # Refresh image availability only; recurring execution remains host-scheduled.
