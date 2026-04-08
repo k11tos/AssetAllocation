@@ -47,23 +47,45 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.PI_SSH_KEY }}
+
+      - name: Add Raspberry Pi host key
+        env:
+          PI_HOST: ${{ secrets.PI_HOST }}
+          PI_PORT: ${{ secrets.PI_PORT }}
+        run: |
+          set -eu
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "$PI_PORT" "$PI_HOST" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
       - name: Deploy updated image on Raspberry Pi
-        uses: appleboy/ssh-action@v1
         env:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           GHCR_USERNAME: ${{ secrets.DEPLOY_GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.DEPLOY_GHCR_TOKEN }}
-        with:
-          host: ${{ secrets.PI_HOST }}
-          username: ${{ secrets.PI_USER }}
-          key: ${{ secrets.PI_SSH_KEY }}
-          port: ${{ secrets.PI_PORT }}
-          script_stop: true
-          envs: IMAGE_NAME,DEPLOY_PATH,GHCR_USERNAME,GHCR_TOKEN
-          script: |
+          PI_HOST: ${{ secrets.PI_HOST }}
+          PI_USER: ${{ secrets.PI_USER }}
+          PI_PORT: ${{ secrets.PI_PORT }}
+        run: |
+          set -eu
+          IMAGE_NAME_Q=$(printf '%q' "$IMAGE_NAME")
+          DEPLOY_PATH_Q=$(printf '%q' "$DEPLOY_PATH")
+          GHCR_USERNAME_Q=$(printf '%q' "$GHCR_USERNAME")
+          GHCR_TOKEN_Q=$(printf '%q' "$GHCR_TOKEN")
+          ssh -p "$PI_PORT" "$PI_USER@$PI_HOST" \
+            'bash -se' <<EOF
             set -eu
+            export IMAGE_NAME=$IMAGE_NAME_Q
+            export DEPLOY_PATH=$DEPLOY_PATH_Q
+            export GHCR_USERNAME=$GHCR_USERNAME_Q
+            export GHCR_TOKEN=$GHCR_TOKEN_Q
             cd "$DEPLOY_PATH"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
             # Refresh image availability only; recurring execution remains host-scheduled.
             ASSET_ALLOCATION_IMAGE="$IMAGE_NAME" docker compose pull asset-allocation
+          EOF
