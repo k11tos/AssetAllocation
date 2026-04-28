@@ -83,3 +83,6 @@ node_modules/
 .cursor/
 .coverage
 tests/repro*.py
+
+# Codex CLI local artifact
+.codex
