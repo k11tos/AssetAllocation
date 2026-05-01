@@ -514,9 +514,13 @@ def main():
             " ".join(required_tickers)
         )
         evaluation_date = data_service.get_last_market_data_date() or "unknown"
+        tip_diagnostics = data_service.get_tip_diagnostics(
+            data_service.last_daily_prices.get("TIP")
+        )
         report = HAAStrategy().build_debug_report(
             momentum_score_simple=momentum_score_simple,
             evaluation_date=evaluation_date,
+            tip_diagnostics=tip_diagnostics,
         )
         print(report)
         return

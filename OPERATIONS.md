@@ -158,3 +158,7 @@ uv run python -m pytest
 ```
 
 (Repository CI for pull requests also runs compile/import checks plus pytest.)
+
+### Twelve Data operations
+- Env vars: `PRICE_PROVIDER=twelvedata`, `TWELVEDATA_API_KEY=<key>`.
+- Compare providers by running HAA debug report twice (Yahoo and Twelve Data) and diffing TIP diagnostics.
