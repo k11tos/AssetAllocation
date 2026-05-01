@@ -4,16 +4,19 @@ Data service for financial data retrieval
 """
 
 import logging
-from typing import Any, Dict, Optional, Tuple
+from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import requests
 import talib as ta
 import yfinance as yf
 from fredapi import Fred
 
 from config import (
     API_CONFIG,
+    PRICE_PROVIDER_CONFIG,
     YFINANCE_CONFIG,
     get_momentum_weights_dict,
     get_trading_days_dict,
@@ -27,6 +30,75 @@ from utils.security import InputValidator, SecurityManager, log_security_event
 LOGGER = LoggingConfig.get_logger(__name__)
 
 
+
+
+class PriceProvider(ABC):
+    """가격 제공자 인터페이스"""
+
+    adjust_mode: str
+
+    @abstractmethod
+    def fetch(self, tickers: List[str]) -> pd.DataFrame:
+        """티커별 조정 종가 데이터프레임을 반환합니다."""
+
+
+class YahooPriceProvider(PriceProvider):
+    adjust_mode = "adj_close"
+
+    def fetch(self, tickers: List[str]) -> pd.DataFrame:
+        ticker_str = " ".join(tickers)
+        return yf.download(
+            tickers=ticker_str,
+            period=YFINANCE_CONFIG.PERIOD,
+            interval=YFINANCE_CONFIG.INTERVAL,
+            group_by="ticker",
+            auto_adjust=YFINANCE_CONFIG.AUTO_ADJUST,
+        ).dropna()
+
+
+class TwelveDataPriceProvider(PriceProvider):
+    adjust_mode = "all"
+    base_url = "https://api.twelvedata.com/time_series"
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
+    def _fetch_symbol(self, symbol: str) -> pd.Series:
+        response = requests.get(
+            self.base_url,
+            params={
+                "symbol": symbol,
+                "interval": "1day",
+                "outputsize": 400,
+                "order": "ASC",
+                "adjust": "all",
+                "apikey": self.api_key,
+            },
+            timeout=YFINANCE_CONFIG.TIMEOUT,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if "values" not in payload:
+            raise DataRetrievalError(
+                f"Twelve Data response missing values for {symbol}: {payload}"
+            )
+
+        frame = pd.DataFrame(payload["values"])
+        if "datetime" not in frame or "close" not in frame:
+            raise DataRetrievalError(
+                f"Twelve Data response missing datetime/close for {symbol}"
+            )
+        frame["datetime"] = pd.to_datetime(frame["datetime"])
+        frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
+        series = frame.set_index("datetime")["close"].sort_index()
+        return series
+
+    def fetch(self, tickers: List[str]) -> pd.DataFrame:
+        data = {symbol: self._fetch_symbol(symbol) for symbol in tickers}
+        if not data:
+            return pd.DataFrame()
+        return pd.DataFrame(data).dropna(how="all").sort_index()
+
 class DataService:
     """금융 데이터 서비스"""
 
@@ -36,10 +108,22 @@ class DataService:
         self.security_manager = SecurityManager()
         self.last_market_data_date: Optional[str] = None
         self._initialize_fred()
+        self.last_fetch_metadata: Dict[str, Any] = {}
+        self.last_daily_prices: Dict[str, pd.Series] = {}
 
     def get_last_market_data_date(self) -> Optional[str]:
         """가장 최근 get_financial_data 실행의 시장 데이터 기준일을 반환합니다."""
         return self.last_market_data_date
+
+    def _format_index_date(self, value: Any) -> str:
+        """인덱스 값을 YYYY-MM-DD 문자열로 포맷합니다."""
+        try:
+            ts = pd.Timestamp(value)
+            if pd.isna(ts):
+                return str(value)
+            return ts.strftime("%Y-%m-%d")
+        except Exception:
+            return str(value)
 
     def _initialize_fred(self) -> None:
         """FRED 계정을 초기화합니다."""
@@ -198,10 +282,12 @@ class DataService:
         validated_tickers = " ".join(valid_tickers)
 
         # 캐시에서 데이터 확인
+        provider_name = PRICE_PROVIDER_CONFIG.PROVIDER
         cache_key_params = {
             "period": YFINANCE_CONFIG.PERIOD,
             "interval": YFINANCE_CONFIG.INTERVAL,
             "auto_adjust": YFINANCE_CONFIG.AUTO_ADJUST,
+            "provider": provider_name,
         }
 
         cached_data = self.cache_manager.get(
@@ -213,6 +299,27 @@ class DataService:
             )
             if isinstance(cached_data, dict) and "result" in cached_data:
                 self.last_market_data_date = cached_data.get("evaluation_date")
+                fetch_metadata = cached_data.get("fetch_metadata", {})
+                self.last_fetch_metadata = {
+                    "price_provider": fetch_metadata.get(
+                        "price_provider", provider_name
+                    ),
+                    "adjust_mode": fetch_metadata.get(
+                        "adjust_mode",
+                        "all" if provider_name == "twelvedata" else "adj_close",
+                    ),
+                    "symbols": fetch_metadata.get("symbols", valid_tickers),
+                    "date_range": fetch_metadata.get(
+                        "date_range", ["cached", "cached"]
+                    ),
+                    "cached": True,
+                }
+                cached_daily_prices = cached_data.get("daily_prices", {})
+                self.last_daily_prices = (
+                    cached_daily_prices
+                    if isinstance(cached_daily_prices, dict)
+                    else {}
+                )
                 return cached_data["result"]
             if isinstance(cached_data, tuple):
                 # 레거시 캐시 포맷: 기준일 정보가 없으므로 재조회 후 캐시 갱신
@@ -220,23 +327,25 @@ class DataService:
                     "Legacy cache format detected; refreshing to capture evaluation date"
                 )
 
-        LoggingConfig.log_data_retrieval(
-            LOGGER, "yfinance", valid_tickers, cached=False
-        )
-        data, evaluation_date = self._fetch_financial_data(validated_tickers)
+        data, evaluation_date = self._fetch_financial_data(validated_tickers, provider_name)
         self.last_market_data_date = evaluation_date
 
         # 캐시에 저장
         self.cache_manager.set(
             validated_tickers,
-            {"result": data, "evaluation_date": evaluation_date},
+            {
+                "result": data,
+                "evaluation_date": evaluation_date,
+                "fetch_metadata": self.last_fetch_metadata,
+                "daily_prices": self.last_daily_prices,
+            },
             **cache_key_params,
         )
 
         return data
 
     def _fetch_financial_data(
-        self, tickers: str
+        self, tickers: str, provider_name: str
     ) -> Tuple[
         Tuple[
             Dict[str, float],
@@ -268,43 +377,58 @@ class DataService:
         sma_12month = {}
         today_price = {}
 
+        ticker_list = tickers.split()
+        provider: PriceProvider
+        if provider_name == "yahoo":
+            provider = YahooPriceProvider()
+        elif provider_name == "twelvedata":
+            if not API_CONFIG.TWELVEDATA_API_KEY:
+                raise DataValidationError(
+                    "PRICE_PROVIDER=twelvedata requires TWELVEDATA_API_KEY. "
+                    "Set TWELVEDATA_API_KEY in your environment or .env file."
+                )
+            provider = TwelveDataPriceProvider(API_CONFIG.TWELVEDATA_API_KEY)
+        else:
+            raise DataValidationError(f"Unsupported PRICE_PROVIDER: {provider_name}")
+
         try:
-            data = yf.download(
-                tickers=tickers,
-                period=YFINANCE_CONFIG.PERIOD,
-                interval=YFINANCE_CONFIG.INTERVAL,
-                group_by="ticker",
-                auto_adjust=YFINANCE_CONFIG.AUTO_ADJUST,
-            ).dropna()
+            raw_data = provider.fetch(ticker_list)
         except Exception as e:
             LOGGER.error(f"Failed to download financial data: {str(e)}")
             raise NetworkError(f"Failed to download financial data: {str(e)}")
 
-        # 데이터 유효성 검사
-        if len(data) == 0:
-            raise DataRetrievalError(
-                "No data available for the specified tickers"
-            )
+        if len(raw_data) == 0:
+            raise DataRetrievalError("No data available for the specified tickers")
 
-        # 첫 번째 자산을 기준으로 거래일 수 계산
-        first_ticker = data.columns.get_level_values(0)[0]
-        if (first_ticker, "Adj Close") not in data.columns:
-            raise DataRetrievalError(
-                f"{first_ticker} data not available "
-                "- required for calculations"
-            )
+        self.last_fetch_metadata = {
+            "price_provider": provider_name,
+            "adjust_mode": provider.adjust_mode,
+            "symbols": ticker_list,
+            "date_range": [
+                self._format_index_date(raw_data.index.min()),
+                self._format_index_date(raw_data.index.max()),
+            ],
+            "cached": False,
+        }
+
+        LOGGER.info("Price provider=%s adjust=%s symbols=%s date_range=%s", provider_name, provider.adjust_mode, ticker_list, self.last_fetch_metadata["date_range"])
 
         # 거래일 상수 가져오기
         trading_days = get_trading_days_dict()
         momentum_weights = get_momentum_weights_dict()
 
         # 각 티커에 대해 데이터 처리
-        for ticker in tickers.split():
-            if (ticker, "Adj Close") not in data.columns:
-                LOGGER.warning(f"No data available for ticker: {ticker}")
-                continue
-
-            daily_price[ticker] = data[(ticker, "Adj Close")]
+        for ticker in ticker_list:
+            if provider_name == "yahoo":
+                if (ticker, "Adj Close") not in raw_data.columns:
+                    LOGGER.warning(f"No data available for ticker: {ticker}")
+                    continue
+                daily_price[ticker] = raw_data[(ticker, "Adj Close")]
+            else:
+                if ticker not in raw_data.columns:
+                    LOGGER.warning(f"No data available for ticker: {ticker}")
+                    continue
+                daily_price[ticker] = raw_data[ticker]
 
             # 수익률 계산 (ta-lib ROC 사용)
             # ta-lib는 double 타입을 요구하므로 astype으로 변환
@@ -369,14 +493,15 @@ class DataService:
             )[-1]
             today_price[ticker] = daily_price[ticker].iloc[-1]
 
+        self.last_daily_prices = daily_price
         LOGGER.info(
             f"✅ Successfully processed financial data for "
             f"{len(tickers.split())} tickers"
         )
 
-        latest_index = data.index[-1]
+        latest_index = raw_data.index[-1]
         haa_month_end_anchor: Optional[pd.Timestamp] = None
-        for ticker in tickers.split():
+        for ticker in ticker_list:
             series = daily_price.get(ticker)
             if series is None:
                 continue
@@ -404,6 +529,39 @@ class DataService:
             ),
             evaluation_date,
         )
+
+
+    def get_tip_diagnostics(self, tip_series: Optional[pd.Series]) -> Dict[str, Any]:
+        """HAA TIP 진단 정보 반환"""
+        diagnostics: Dict[str, Any] = {
+            "price_provider": self.last_fetch_metadata.get("price_provider", "unknown"),
+            "adjust_mode": self.last_fetch_metadata.get("adjust_mode", "unknown"),
+            "month_end_prices": {},
+            "returns": {},
+            "tip_13612u": None,
+            "canary_decision": "UNKNOWN",
+            "diagnostics_available": False,
+        }
+        if tip_series is None or tip_series.empty:
+            return diagnostics
+
+        month_end = self._extract_month_end_prices(tip_series, drop_incomplete_current_month=True)
+        labels = [(0, "T"), (1, "T-1"), (3, "T-3"), (6, "T-6"), (12, "T-12")]
+        for offset, label in labels:
+            if len(month_end) > offset:
+                diagnostics["month_end_prices"][label] = float(month_end.iloc[-(offset+1)])
+
+        returns = self._calculate_month_end_returns(tip_series)
+        diagnostics["returns"] = {
+            "1M": returns[1],
+            "3M": returns[3],
+            "6M": returns[6],
+            "12M": returns[12],
+        }
+        diagnostics["diagnostics_available"] = True
+        diagnostics["tip_13612u"] = sum(diagnostics["returns"].values()) / 4.0
+        diagnostics["canary_decision"] = "OFFENSIVE" if diagnostics["tip_13612u"] > 0 else "DEFENSIVE"
+        return diagnostics
 
     @monitor_performance("get_fred_data")
     def get_fred_data(

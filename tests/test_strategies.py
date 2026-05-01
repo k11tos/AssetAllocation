@@ -313,6 +313,34 @@ class TestHAAStrategy(unittest.TestCase):
 
         self.assertNotIn("Defensive asset used:", report)
 
+    def test_build_debug_report_uses_trace_mode_when_diagnostics_unknown(self):
+        momentum_score_simple = {
+            "SPY": 0.20,
+            "IWM": 0.10,
+            "IEFA": 0.05,
+            "IEMG": -0.01,
+            "VNQ": -0.02,
+            "PDBC": -0.03,
+            "IEF": 0.02,
+            "TLT": 0.01,
+            "BIL": 0.01,
+            "TIP": 0.10,
+        }
+        report = self.strategy.build_debug_report(
+            momentum_score_simple=momentum_score_simple,
+            evaluation_date="2026-04-04",
+            tip_diagnostics={
+                "price_provider": "yahoo",
+                "adjust_mode": "adj_close",
+                "canary_decision": "UNKNOWN",
+                "month_end_prices": {},
+                "returns": {},
+                "tip_13612u": None,
+            },
+        )
+        self.assertIn("Canary decision: OFFENSIVE", report)
+        self.assertIn("unavailable (TIP raw-price series missing)", report)
+
 
 class TestKoreanAllWeatherStrategy(unittest.TestCase):
     """한국형 올웨더 전략 테스트"""

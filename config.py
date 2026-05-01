@@ -257,7 +257,15 @@ class APIConfig:
     FRED_API_KEY: str = os.getenv("FRED_API_KEY", "")
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
+    TWELVEDATA_API_KEY: str = os.getenv("TWELVEDATA_API_KEY", "")
     FALLBACK_FILE: str = "portfolio.txt"
+
+
+@dataclass
+class PriceProviderConfig:
+    """가격 데이터 제공자 설정"""
+
+    PROVIDER: str = os.getenv("PRICE_PROVIDER", "yahoo").lower()
 
 
 @dataclass
@@ -284,6 +292,7 @@ BDAA_CONFIG = BDAAConfig()
 MDM_CONFIG = MDMConfig()
 API_CONFIG = APIConfig()
 YFINANCE_CONFIG = YFinanceConfig()
+PRICE_PROVIDER_CONFIG = PriceProviderConfig()
 
 
 def validate_config() -> bool:

@@ -458,3 +458,8 @@ See the [Contributing Guide](docs/source/contributing.rst) for detailed informat
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Price provider selection (Yahoo vs Twelve Data)
+- Default provider: `PRICE_PROVIDER=yahoo`.
+- To use Twelve Data adjusted daily prices: set `PRICE_PROVIDER=twelvedata` and `TWELVEDATA_API_KEY=...`.
+- HAA TIP diagnostics (`python cli.py --strategy haa --haa-debug-report`) now includes provider, adjust mode, TIP month-end anchors (T/T-1/T-3/T-6/T-12), 1/3/6/12M returns, TIP 13612U, and final canary decision for source comparison.

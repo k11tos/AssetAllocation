@@ -214,7 +214,14 @@ def test_haa_debug_report_path_prints_trace(monkeypatch, cli_module, capsys):
 
     class _FakeDataService:
         def __init__(self):
+            import pandas as pd
             self._market_date = "2026-03-31"
+            self.last_daily_prices = {
+                "TIP": pd.Series(
+                    [100.0, 101.0],
+                    index=pd.to_datetime(["2026-02-28", "2026-03-31"]),
+                )
+            }
 
         def get_financial_data(self, *_args, **_kwargs):
             return (
@@ -237,6 +244,19 @@ def test_haa_debug_report_path_prints_trace(monkeypatch, cli_module, capsys):
         def get_last_market_data_date(self):
             return self._market_date
 
+        def get_tip_diagnostics(self, _tip_series):
+            return {
+                "price_provider": "yahoo",
+                "adjust_mode": "adj_close",
+                "month_end_prices": {
+                    "T": 101.0,
+                    "T-1": 100.0,
+                },
+                "returns": {"1M": 0.01, "3M": 0.0, "6M": 0.0, "12M": 0.0},
+                "tip_13612u": 0.0025,
+                "canary_decision": "OFFENSIVE",
+            }
+
     monkeypatch.setattr(cli_module, "DataService", _FakeDataService)
 
     _run_cli(
@@ -248,6 +268,7 @@ def test_haa_debug_report_path_prints_trace(monkeypatch, cli_module, capsys):
     output = capsys.readouterr().out
     assert "HAA Decision Trace Report" in output
     assert "Evaluation date: 2026-03-31" in output
+    assert "Price provider: yahoo" in output
     assert "Final allocation:" in output
 
 

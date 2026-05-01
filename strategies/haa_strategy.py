@@ -160,7 +160,7 @@ class HAAStrategy(BaseStrategy):
         return haa, trace
 
     def build_debug_report(
-        self, momentum_score_simple: Dict[str, float], evaluation_date: str
+        self, momentum_score_simple: Dict[str, float], evaluation_date: str, tip_diagnostics: Dict[str, Any] | None = None
     ) -> str:
         """HAA 한 번 실행에 대한 사람이 읽기 쉬운 디버그 리포트를 생성합니다."""
         _, trace = self._calculate_allocation_with_trace(momentum_score_simple)
@@ -178,6 +178,32 @@ class HAAStrategy(BaseStrategy):
             "",
             "Offensive universe momentum table (desc):",
         ]
+        if tip_diagnostics:
+            canary_decision = tip_diagnostics.get("canary_decision")
+            if canary_decision in (None, "", "UNKNOWN"):
+                canary_decision = trace["mode"]
+            output.extend([
+                f"Price provider: {tip_diagnostics.get('price_provider', 'unknown')}",
+                f"Adjust mode: {tip_diagnostics.get('adjust_mode', 'unknown')}",
+                f"Canary decision: {canary_decision}",
+                "TIP month-end anchors:",
+            ])
+            month_end_prices = tip_diagnostics.get("month_end_prices", {})
+            if month_end_prices:
+                for label, price in month_end_prices.items():
+                    output.append(f"  - {label}: {price}")
+            else:
+                output.append("  - unavailable (TIP raw-price series missing)")
+            output.append("TIP month-end returns:")
+            returns = tip_diagnostics.get("returns", {})
+            if returns:
+                for label, ret in returns.items():
+                    output.append(f"  - {label}: {ret}")
+            else:
+                output.append("  - unavailable (TIP raw-price series missing)")
+            tip_13612u = tip_diagnostics.get("tip_13612u")
+            output.append(f"TIP 13612U momentum: {tip_13612u if tip_13612u is not None else 'unavailable'}")
+            output.append("")
         for ticker, momentum in trace["offensive_momentum_table"]:
             output.append(f"  - {ticker}: {momentum:.6f}")
 
