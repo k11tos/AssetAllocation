@@ -136,7 +136,9 @@ class TestDataService(unittest.TestCase):
         )
         mock_download.return_value = mock_data
 
-        with patch("services.data_service.pd.Timestamp.now") as mock_now:
+        with patch.object(
+            self.data_service.cache_manager, "get", return_value=None
+        ), patch("services.data_service.pd.Timestamp.now") as mock_now:
             mock_now.return_value = pd.Timestamp("2026-04-04")
             self.data_service.get_financial_data("SPY")
 
@@ -280,8 +282,19 @@ class TestDataService(unittest.TestCase):
         self.assertEqual(month_end_prices.index[-1], pd.Timestamp("2026-03-31"))
 
     def test_default_price_provider_is_yahoo(self):
-        with patch("services.data_service.PRICE_PROVIDER_CONFIG.PROVIDER", "yahoo"):
-            self.assertEqual("yahoo", "yahoo")
+        import pandas as pd
+
+        with patch("services.data_service.PRICE_PROVIDER_CONFIG.PROVIDER", "yahoo"), patch(
+            "services.data_service.YahooPriceProvider.fetch"
+        ) as mock_fetch:
+            mock_fetch.return_value = pd.DataFrame(
+                {("SPY", "Adj Close"): [100.0, 101.0]},
+                index=pd.to_datetime(["2026-01-02", "2026-01-03"]),
+            )
+            self.data_service.get_financial_data("SPY")
+            self.assertEqual(
+                self.data_service.last_fetch_metadata["price_provider"], "yahoo"
+            )
 
     def test_twelvedata_selected_by_env(self):
         with patch("services.data_service.PRICE_PROVIDER_CONFIG.PROVIDER", "twelvedata"), patch(
@@ -298,10 +311,13 @@ class TestDataService(unittest.TestCase):
             "services.data_service.API_CONFIG.TWELVEDATA_API_KEY", ""
         ):
             from exceptions import DataValidationError
-            with self.assertRaisesRegex(DataValidationError, "TWELVEDATA_API_KEY"):
+            with patch.object(
+                self.data_service.cache_manager, "get", return_value=None
+            ), self.assertRaisesRegex(DataValidationError, "TWELVEDATA_API_KEY"):
                 self.data_service.get_financial_data("SPY")
 
     def test_twelvedata_parse_sorted_ascending(self):
+        import pandas as pd
         from services.data_service import TwelveDataPriceProvider
 
         mock_response = Mock()
@@ -316,6 +332,7 @@ class TestDataService(unittest.TestCase):
             frame = TwelveDataPriceProvider("key").fetch(["TIP"])
         self.assertEqual(list(frame.index), sorted(frame.index))
         self.assertIn("TIP", frame.columns)
+        self.assertTrue(pd.api.types.is_numeric_dtype(frame["TIP"]))
 
     def test_calculate_month_end_returns_keeps_holiday_shortened_latest_month(self):
         """휴장으로 마지막 거래일이 월말 이전이어도 최신 월을 드롭하지 않아야 함"""

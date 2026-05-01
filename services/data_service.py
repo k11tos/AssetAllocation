@@ -115,6 +115,16 @@ class DataService:
         """가장 최근 get_financial_data 실행의 시장 데이터 기준일을 반환합니다."""
         return self.last_market_data_date
 
+    def _format_index_date(self, value: Any) -> str:
+        """인덱스 값을 YYYY-MM-DD 문자열로 포맷합니다."""
+        try:
+            ts = pd.Timestamp(value)
+            if pd.isna(ts):
+                return str(value)
+            return ts.strftime("%Y-%m-%d")
+        except Exception:
+            return str(value)
+
     def _initialize_fred(self) -> None:
         """FRED 계정을 초기화합니다."""
         try:
@@ -289,6 +299,16 @@ class DataService:
             )
             if isinstance(cached_data, dict) and "result" in cached_data:
                 self.last_market_data_date = cached_data.get("evaluation_date")
+                self.last_fetch_metadata = {
+                    "price_provider": provider_name,
+                    "adjust_mode": (
+                        "all" if provider_name == "twelvedata" else "adj_close"
+                    ),
+                    "symbols": valid_tickers,
+                    "date_range": ["cached", "cached"],
+                    "cached": True,
+                }
+                self.last_daily_prices = {}
                 return cached_data["result"]
             if isinstance(cached_data, tuple):
                 # 레거시 캐시 포맷: 기준일 정보가 없으므로 재조회 후 캐시 갱신
@@ -368,7 +388,10 @@ class DataService:
             "price_provider": provider_name,
             "adjust_mode": provider.adjust_mode,
             "symbols": ticker_list,
-            "date_range": [str(raw_data.index.min().date()), str(raw_data.index.max().date())],
+            "date_range": [
+                self._format_index_date(raw_data.index.min()),
+                self._format_index_date(raw_data.index.max()),
+            ],
             "cached": False,
         }
 
