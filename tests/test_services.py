@@ -334,6 +334,35 @@ class TestDataService(unittest.TestCase):
         self.assertIn("TIP", frame.columns)
         self.assertTrue(pd.api.types.is_numeric_dtype(frame["TIP"]))
 
+    @patch("services.data_service.yf.download")
+    def test_cache_hit_restores_daily_prices_and_metadata_for_diagnostics(
+        self, mock_download
+    ):
+        import pandas as pd
+
+        mock_download.return_value = pd.DataFrame(
+            {("TIP", "Adj Close"): [100.0, 101.0, 102.0]},
+            index=pd.to_datetime(["2026-01-30", "2026-02-28", "2026-03-31"]),
+        )
+        with patch.object(self.data_service.cache_manager, "get", return_value=None):
+            self.data_service.get_financial_data("TIP")
+
+        with patch("services.data_service.yf.download") as cached_download:
+            self.data_service.get_financial_data("TIP")
+            cached_download.assert_not_called()
+
+        self.assertTrue(self.data_service.last_fetch_metadata["cached"])
+        self.assertIn("TIP", self.data_service.last_daily_prices)
+        diagnostics = self.data_service.get_tip_diagnostics(
+            self.data_service.last_daily_prices.get("TIP")
+        )
+        self.assertTrue(diagnostics["diagnostics_available"])
+
+    def test_get_tip_diagnostics_missing_tip_is_unknown(self):
+        diagnostics = self.data_service.get_tip_diagnostics(None)
+        self.assertEqual(diagnostics["canary_decision"], "UNKNOWN")
+        self.assertIsNone(diagnostics["tip_13612u"])
+
     def test_calculate_month_end_returns_keeps_holiday_shortened_latest_month(self):
         """휴장으로 마지막 거래일이 월말 이전이어도 최신 월을 드롭하지 않아야 함"""
         import pandas as pd

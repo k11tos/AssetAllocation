@@ -299,16 +299,27 @@ class DataService:
             )
             if isinstance(cached_data, dict) and "result" in cached_data:
                 self.last_market_data_date = cached_data.get("evaluation_date")
+                fetch_metadata = cached_data.get("fetch_metadata", {})
                 self.last_fetch_metadata = {
-                    "price_provider": provider_name,
-                    "adjust_mode": (
-                        "all" if provider_name == "twelvedata" else "adj_close"
+                    "price_provider": fetch_metadata.get(
+                        "price_provider", provider_name
                     ),
-                    "symbols": valid_tickers,
-                    "date_range": ["cached", "cached"],
+                    "adjust_mode": fetch_metadata.get(
+                        "adjust_mode",
+                        "all" if provider_name == "twelvedata" else "adj_close",
+                    ),
+                    "symbols": fetch_metadata.get("symbols", valid_tickers),
+                    "date_range": fetch_metadata.get(
+                        "date_range", ["cached", "cached"]
+                    ),
                     "cached": True,
                 }
-                self.last_daily_prices = {}
+                cached_daily_prices = cached_data.get("daily_prices", {})
+                self.last_daily_prices = (
+                    cached_daily_prices
+                    if isinstance(cached_daily_prices, dict)
+                    else {}
+                )
                 return cached_data["result"]
             if isinstance(cached_data, tuple):
                 # 레거시 캐시 포맷: 기준일 정보가 없으므로 재조회 후 캐시 갱신
@@ -322,7 +333,12 @@ class DataService:
         # 캐시에 저장
         self.cache_manager.set(
             validated_tickers,
-            {"result": data, "evaluation_date": evaluation_date},
+            {
+                "result": data,
+                "evaluation_date": evaluation_date,
+                "fetch_metadata": self.last_fetch_metadata,
+                "daily_prices": self.last_daily_prices,
+            },
             **cache_key_params,
         )
 
@@ -522,8 +538,9 @@ class DataService:
             "adjust_mode": self.last_fetch_metadata.get("adjust_mode", "unknown"),
             "month_end_prices": {},
             "returns": {},
-            "tip_13612u": 0.0,
-            "canary_decision": "DEFENSIVE",
+            "tip_13612u": None,
+            "canary_decision": "UNKNOWN",
+            "diagnostics_available": False,
         }
         if tip_series is None or tip_series.empty:
             return diagnostics
@@ -541,6 +558,7 @@ class DataService:
             "6M": returns[6],
             "12M": returns[12],
         }
+        diagnostics["diagnostics_available"] = True
         diagnostics["tip_13612u"] = sum(diagnostics["returns"].values()) / 4.0
         diagnostics["canary_decision"] = "OFFENSIVE" if diagnostics["tip_13612u"] > 0 else "DEFENSIVE"
         return diagnostics
