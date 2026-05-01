@@ -13,6 +13,25 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _get_positive_int_env(var_name: str, default: int) -> int:
+    """양의 정수 환경변수를 안전하게 파싱합니다."""
+    raw_value = os.getenv(var_name)
+    if raw_value is None:
+        return default
+
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{var_name} must be a positive integer (e.g., {default})."
+        ) from exc
+
+    if parsed <= 0:
+        raise ValueError(f"{var_name} must be greater than 0.")
+
+    return parsed
+
+
 class KoreanAllWeatherConstants:
     """한국형 올웨더 전략 상수들"""
 
@@ -258,11 +277,11 @@ class APIConfig:
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
     TWELVEDATA_API_KEY: str = os.getenv("TWELVEDATA_API_KEY", "")
-    TWELVEDATA_MAX_CREDITS_PER_MINUTE: int = int(
-        os.getenv("TWELVEDATA_MAX_CREDITS_PER_MINUTE", "8")
+    TWELVEDATA_MAX_CREDITS_PER_MINUTE: int = _get_positive_int_env(
+        "TWELVEDATA_MAX_CREDITS_PER_MINUTE", 8
     )
-    TWELVEDATA_REQUEST_SLEEP_SECONDS: int = int(
-        os.getenv("TWELVEDATA_REQUEST_SLEEP_SECONDS", "65")
+    TWELVEDATA_REQUEST_SLEEP_SECONDS: int = _get_positive_int_env(
+        "TWELVEDATA_REQUEST_SLEEP_SECONDS", 65
     )
     FALLBACK_FILE: str = "portfolio.txt"
 
