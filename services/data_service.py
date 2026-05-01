@@ -4,6 +4,7 @@ Data service for financial data retrieval
 """
 
 import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -60,8 +61,15 @@ class TwelveDataPriceProvider(PriceProvider):
     adjust_mode = "all"
     base_url = "https://api.twelvedata.com/time_series"
 
-    def __init__(self, api_key: str):
+    def __init__(
+        self,
+        api_key: str,
+        max_credits_per_minute: int = 8,
+        request_sleep_seconds: int = 65,
+    ):
         self.api_key = api_key
+        self.max_credits_per_minute = max_credits_per_minute
+        self.request_sleep_seconds = request_sleep_seconds
 
     def _fetch_symbol(self, symbol: str) -> pd.Series:
         response = requests.get(
@@ -94,7 +102,53 @@ class TwelveDataPriceProvider(PriceProvider):
         return series
 
     def fetch(self, tickers: List[str]) -> pd.DataFrame:
-        data = {symbol: self._fetch_symbol(symbol) for symbol in tickers}
+        if self.max_credits_per_minute <= 0:
+            raise DataValidationError(
+                "TWELVEDATA_MAX_CREDITS_PER_MINUTE must be greater than 0."
+            )
+        if self.request_sleep_seconds <= 0:
+            raise DataValidationError(
+                "TWELVEDATA_REQUEST_SLEEP_SECONDS must be greater than 0."
+            )
+
+        data: Dict[str, pd.Series] = {}
+        total_batches = (
+            len(tickers) + self.max_credits_per_minute - 1
+        ) // self.max_credits_per_minute
+        for batch_index, batch_start in enumerate(
+            range(0, len(tickers), self.max_credits_per_minute), start=1
+        ):
+            batch_symbols = tickers[
+                batch_start : batch_start + self.max_credits_per_minute
+            ]
+            LOGGER.info(
+                "Twelve Data batch %s/%s: fetching symbols %s",
+                batch_index,
+                total_batches,
+                batch_symbols,
+            )
+            try:
+                for symbol in batch_symbols:
+                    data[symbol] = self._fetch_symbol(symbol)
+            except requests.HTTPError as exc:
+                if exc.response is not None and exc.response.status_code == 429:
+                    raise DataRetrievalError(
+                        "Twelve Data API returned HTTP 429 (rate limit exceeded). "
+                        "Try lowering TWELVEDATA_MAX_CREDITS_PER_MINUTE, increasing "
+                        "TWELVEDATA_REQUEST_SLEEP_SECONDS, or use PRICE_PROVIDER=yahoo "
+                        "for canary-only runs."
+                    ) from exc
+                raise
+
+            if batch_index < total_batches:
+                LOGGER.info(
+                    "Twelve Data batch %s/%s complete. Sleeping %s seconds before next batch.",
+                    batch_index,
+                    total_batches,
+                    self.request_sleep_seconds,
+                )
+                time.sleep(self.request_sleep_seconds)
+
         if not data:
             return pd.DataFrame()
         return pd.DataFrame(data).dropna(how="all").sort_index()
@@ -387,7 +441,11 @@ class DataService:
                     "PRICE_PROVIDER=twelvedata requires TWELVEDATA_API_KEY. "
                     "Set TWELVEDATA_API_KEY in your environment or .env file."
                 )
-            provider = TwelveDataPriceProvider(API_CONFIG.TWELVEDATA_API_KEY)
+            provider = TwelveDataPriceProvider(
+                API_CONFIG.TWELVEDATA_API_KEY,
+                max_credits_per_minute=API_CONFIG.TWELVEDATA_MAX_CREDITS_PER_MINUTE,
+                request_sleep_seconds=API_CONFIG.TWELVEDATA_REQUEST_SLEEP_SECONDS,
+            )
         else:
             raise DataValidationError(f"Unsupported PRICE_PROVIDER: {provider_name}")
 

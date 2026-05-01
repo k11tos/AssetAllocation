@@ -462,4 +462,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Price provider selection (Yahoo vs Twelve Data)
 - Default provider: `PRICE_PROVIDER=yahoo`.
 - To use Twelve Data adjusted daily prices: set `PRICE_PROVIDER=twelvedata` and `TWELVEDATA_API_KEY=...`.
+- Twelve Data free/basic plans are rate-limited by API credits per minute. You can tune batching with:
+  - `TWELVEDATA_MAX_CREDITS_PER_MINUTE` (default: `8`)
+  - `TWELVEDATA_REQUEST_SLEEP_SECONDS` (default: `65`)
+- Docker example:
+  - `docker run --rm -e PRICE_PROVIDER=twelvedata -e TWELVEDATA_API_KEY=... -e TWELVEDATA_MAX_CREDITS_PER_MINUTE=8 -e TWELVEDATA_REQUEST_SLEEP_SECONDS=65 asset-allocation`
 - HAA TIP diagnostics (`python cli.py --strategy haa --haa-debug-report`) now includes provider, adjust mode, TIP month-end anchors (T/T-1/T-3/T-6/T-12), 1/3/6/12M returns, TIP 13612U, and final canary decision for source comparison.
