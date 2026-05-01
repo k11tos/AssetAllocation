@@ -334,6 +334,57 @@ class TestDataService(unittest.TestCase):
         self.assertIn("TIP", frame.columns)
         self.assertTrue(pd.api.types.is_numeric_dtype(frame["TIP"]))
 
+    def test_twelvedata_fetch_batches_and_sleeps_between_batches(self):
+        import pandas as pd
+        from services.data_service import TwelveDataPriceProvider
+
+        provider = TwelveDataPriceProvider(
+            "key", max_credits_per_minute=2, request_sleep_seconds=65
+        )
+        symbols = ["SPY", "IWM", "IEFA", "TIP", "BIL"]
+
+        def fake_fetch(symbol):
+            return pd.Series(
+                [100.0], index=pd.to_datetime(["2026-01-02"]), name=symbol
+            )
+
+        with patch.object(provider, "_fetch_symbol", side_effect=fake_fetch) as mock_fetch, patch(
+            "services.data_service.time.sleep"
+        ) as mock_sleep:
+            frame = provider.fetch(symbols)
+
+        self.assertEqual(mock_fetch.call_count, len(symbols))
+        self.assertEqual(frame.shape[1], len(symbols))
+        self.assertEqual(mock_sleep.call_count, 2)  # 3 batches -> 2 sleeps
+        mock_sleep.assert_called_with(65)
+
+    def test_twelvedata_429_raises_clear_guidance(self):
+        from services.data_service import TwelveDataPriceProvider
+
+        provider = TwelveDataPriceProvider(
+            "key", max_credits_per_minute=2, request_sleep_seconds=65
+        )
+        response = Mock(status_code=429)
+        http_error = requests.HTTPError("429 Too Many Requests")
+        http_error.response = response
+        with patch.object(
+            provider, "_fetch_symbol", side_effect=http_error
+        ), self.assertRaisesRegex(
+            Exception,
+            "TWELVEDATA_MAX_CREDITS_PER_MINUTE",
+        ) as exc_context:
+            provider.fetch(["SPY", "IWM", "TIP"])
+
+        self.assertIn("TWELVEDATA_REQUEST_SLEEP_SECONDS", str(exc_context.exception))
+
+    def test_twelvedata_invalid_batch_size_raises_validation_error(self):
+        from exceptions import DataValidationError
+        from services.data_service import TwelveDataPriceProvider
+
+        provider = TwelveDataPriceProvider("key", max_credits_per_minute=0)
+        with self.assertRaises(DataValidationError):
+            provider.fetch(["TIP"])
+
     @patch("services.data_service.yf.download")
     def test_cache_hit_restores_daily_prices_and_metadata_for_diagnostics(
         self, mock_download

@@ -258,6 +258,12 @@ class APIConfig:
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
     TWELVEDATA_API_KEY: str = os.getenv("TWELVEDATA_API_KEY", "")
+    TWELVEDATA_MAX_CREDITS_PER_MINUTE: int = int(
+        os.getenv("TWELVEDATA_MAX_CREDITS_PER_MINUTE", "8")
+    )
+    TWELVEDATA_REQUEST_SLEEP_SECONDS: int = int(
+        os.getenv("TWELVEDATA_REQUEST_SLEEP_SECONDS", "65")
+    )
     FALLBACK_FILE: str = "portfolio.txt"
 
 
