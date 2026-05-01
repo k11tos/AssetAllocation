@@ -106,6 +106,10 @@ class TwelveDataPriceProvider(PriceProvider):
             raise DataValidationError(
                 "TWELVEDATA_MAX_CREDITS_PER_MINUTE must be greater than 0."
             )
+        if self.request_sleep_seconds <= 0:
+            raise DataValidationError(
+                "TWELVEDATA_REQUEST_SLEEP_SECONDS must be greater than 0."
+            )
 
         data: Dict[str, pd.Series] = {}
         total_batches = (

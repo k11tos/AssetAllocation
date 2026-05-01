@@ -385,6 +385,18 @@ class TestDataService(unittest.TestCase):
         with self.assertRaises(DataValidationError):
             provider.fetch(["TIP"])
 
+    def test_twelvedata_invalid_sleep_seconds_raises_validation_error(self):
+        from exceptions import DataValidationError
+        from services.data_service import TwelveDataPriceProvider
+
+        provider = TwelveDataPriceProvider(
+            "key", max_credits_per_minute=2, request_sleep_seconds=-1
+        )
+        with self.assertRaisesRegex(
+            DataValidationError, "TWELVEDATA_REQUEST_SLEEP_SECONDS"
+        ):
+            provider.fetch(["TIP"])
+
     @patch("services.data_service.yf.download")
     def test_cache_hit_restores_daily_prices_and_metadata_for_diagnostics(
         self, mock_download
