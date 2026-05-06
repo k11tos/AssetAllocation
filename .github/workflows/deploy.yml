@@ -63,14 +63,25 @@ jobs:
           ssh-private-key: ${{ secrets.PI_SSH_KEY }}
           log-public-key: false
 
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Tailscale diagnostics
+        run: |
+          tailscale status
+          tailscale ip -4
+
       - name: Add Raspberry Pi host key
         env:
           PI_HOST: ${{ secrets.PI_HOST }}
-          PI_PORT: ${{ secrets.PI_PORT }}
         run: |
           set -eu
           mkdir -p ~/.ssh
-          ssh-keyscan -p "$PI_PORT" "$PI_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan "$PI_HOST" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy updated image on Raspberry Pi
@@ -81,22 +92,33 @@ jobs:
           GHCR_TOKEN: ${{ secrets.DEPLOY_GHCR_TOKEN }}
           PI_HOST: ${{ secrets.PI_HOST }}
           PI_USER: ${{ secrets.PI_USER }}
-          PI_PORT: ${{ secrets.PI_PORT }}
         run: |
           set -eu
           IMAGE_NAME_Q=$(printf '%q' "$IMAGE_NAME")
           DEPLOY_PATH_Q=$(printf '%q' "$DEPLOY_PATH")
           GHCR_USERNAME_Q=$(printf '%q' "$GHCR_USERNAME")
           GHCR_TOKEN_Q=$(printf '%q' "$GHCR_TOKEN")
-          ssh -p "$PI_PORT" "$PI_USER@$PI_HOST" \
+          timeout 10m ssh -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 "$PI_USER@$PI_HOST" \
             'bash -se' <<EOF
             set -eu
             export IMAGE_NAME=$IMAGE_NAME_Q
             export DEPLOY_PATH=$DEPLOY_PATH_Q
             export GHCR_USERNAME=$GHCR_USERNAME_Q
             export GHCR_TOKEN=$GHCR_TOKEN_Q
+
+            test -d "$DEPLOY_PATH" || { echo "Deployment target directory is missing"; exit 1; }
             cd "$DEPLOY_PATH"
+
+            if [ -f docker-compose.yml ] || [ -f docker-compose.yaml ] || [ -f compose.yml ] || [ -f compose.yaml ]; then
+              echo "Deployment compose file verified"
+            else
+              echo "Deployment compose file is missing"
+              exit 1
+            fi
+
+            echo "Docker deployment target verified"
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
             # Refresh image availability only; recurring execution remains host-scheduled.
             ASSET_ALLOCATION_IMAGE="$IMAGE_NAME" docker compose pull asset-allocation
+            docker compose ps
           EOF
