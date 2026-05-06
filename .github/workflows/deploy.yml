@@ -87,7 +87,7 @@ jobs:
       - name: Deploy updated image on Raspberry Pi
         env:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          TARGET_DIR: ${{ secrets.PI_PROJECT_PATH }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           GHCR_USERNAME: ${{ secrets.DEPLOY_GHCR_USERNAME }}
           GHCR_TOKEN: ${{ secrets.DEPLOY_GHCR_TOKEN }}
           PI_HOST: ${{ secrets.PI_HOST }}
@@ -95,19 +95,19 @@ jobs:
         run: |
           set -eu
           IMAGE_NAME_Q=$(printf '%q' "$IMAGE_NAME")
-          TARGET_DIR_Q=$(printf '%q' "$TARGET_DIR")
+          DEPLOY_PATH_Q=$(printf '%q' "$DEPLOY_PATH")
           GHCR_USERNAME_Q=$(printf '%q' "$GHCR_USERNAME")
           GHCR_TOKEN_Q=$(printf '%q' "$GHCR_TOKEN")
           timeout 10m ssh -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 "$PI_USER@$PI_HOST" \
             'bash -se' <<EOF
             set -eu
             export IMAGE_NAME=$IMAGE_NAME_Q
-            export TARGET_DIR=$TARGET_DIR_Q
+            export DEPLOY_PATH=$DEPLOY_PATH_Q
             export GHCR_USERNAME=$GHCR_USERNAME_Q
             export GHCR_TOKEN=$GHCR_TOKEN_Q
 
-            test -d "$TARGET_DIR" || { echo "Deployment target directory is missing"; exit 1; }
-            cd "$TARGET_DIR"
+            test -d "$DEPLOY_PATH" || { echo "Deployment target directory is missing"; exit 1; }
+            cd "$DEPLOY_PATH"
 
             if [ -f docker-compose.yml ] || [ -f docker-compose.yaml ] || [ -f compose.yml ] || [ -f compose.yaml ]; then
               echo "Deployment compose file verified"
