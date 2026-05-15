@@ -3,11 +3,22 @@
 Sector Momentum strategy implementation
 """
 
+import math
 from typing import Any, Dict, List, Tuple
 
 from config import SECTOR_MOMENTUM_CONFIG
 
 from .base_strategy import BaseStrategy
+
+
+def _is_finite_number(value: Any) -> bool:
+    """값이 유한한 숫자인지 확인합니다."""
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return False
+
+    return math.isfinite(numeric_value)
 
 
 class SectorMomentumStrategy(BaseStrategy):
@@ -40,14 +51,28 @@ class SectorMomentumStrategy(BaseStrategy):
             if ticker not in momentum_score:
                 continue
 
-            score = momentum_score[ticker]
+            raw_score = momentum_score[ticker]
+            if not _is_finite_number(raw_score):
+                continue
+            score = float(raw_score)
+
             if score <= SECTOR_MOMENTUM_CONFIG.MIN_MOMENTUM_SCORE:
                 continue
 
             if SECTOR_MOMENTUM_CONFIG.REQUIRE_ABOVE_12M_SMA:
                 if ticker not in sma_12month or ticker not in today_price:
                     continue
-                if today_price[ticker] <= sma_12month[ticker]:
+
+                raw_sma = sma_12month[ticker]
+                raw_today = today_price[ticker]
+                if not _is_finite_number(raw_sma) or not _is_finite_number(
+                    raw_today
+                ):
+                    continue
+
+                sma_value = float(raw_sma)
+                today_value = float(raw_today)
+                if today_value <= sma_value:
                     continue
 
             candidates.append((ticker, score))

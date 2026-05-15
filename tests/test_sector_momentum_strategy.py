@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 """Tests for Sector Momentum strategy."""
 
+import math
+
 from strategies.sector_momentum_strategy import SectorMomentumStrategy
 
 
@@ -78,6 +80,68 @@ class TestSectorMomentumStrategy:
                 "momentum_score": {"XLK": 0.9, "XLC": 0.8},
                 "sma_12month": {"XLC": 90},
                 "today_price": {"XLC": 95},
+            }
+        )
+
+        assert result == {"XLC": 50.0, "SGOV": 50.0}
+
+    def test_nan_momentum_score_is_skipped(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": math.nan, "XLC": 0.8},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 110, "XLC": 95},
+            }
+        )
+
+        assert result == {"XLC": 50.0, "SGOV": 50.0}
+
+    def test_nan_sma_is_skipped(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 0.9, "XLC": 0.8},
+                "sma_12month": {"XLK": math.nan, "XLC": 90},
+                "today_price": {"XLK": 110, "XLC": 95},
+            }
+        )
+
+        assert result == {"XLC": 50.0, "SGOV": 50.0}
+
+    def test_nan_today_price_is_skipped(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 0.9, "XLC": 0.8},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": math.nan, "XLC": 95},
+            }
+        )
+
+        assert result == {"XLC": 50.0, "SGOV": 50.0}
+
+    def test_inf_and_non_numeric_values_are_skipped(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {
+                    "XLK": math.inf,
+                    "XLC": 0.8,
+                    "XLI": "invalid",
+                    "XLF": None,
+                    "XLE": -math.inf,
+                },
+                "sma_12month": {
+                    "XLK": 100,
+                    "XLC": 90,
+                    "XLI": 80,
+                    "XLF": 70,
+                    "XLE": 60,
+                },
+                "today_price": {
+                    "XLK": 110,
+                    "XLC": 95,
+                    "XLI": 85,
+                    "XLF": 75,
+                    "XLE": 65,
+                },
             }
         )
 
