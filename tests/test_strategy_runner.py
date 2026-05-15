@@ -75,10 +75,12 @@ def test_get_available_strategy_runners_resolves_main_registry(monkeypatch):
     main_module = types.ModuleType("main")
     main_module.execute_haa_strategy = lambda: {"HAA": 100.0}
     main_module.execute_kaw_strategy = lambda: {"KAW": 100.0}
+    main_module.execute_sector_momentum_strategy = lambda: {"SECTOR_MOMENTUM": 100.0}
     monkeypatch.setitem(sys.modules, "main", main_module)
 
     runners = get_available_strategy_runners("main")
 
-    assert set(runners) == {"HAA", "KAW"}
+    assert set(runners) == {"HAA", "KAW", "SECTOR_MOMENTUM"}
     assert runners["HAA"]() == {"HAA": 100.0}
     assert runners["KAW"]() == {"KAW": 100.0}
+    assert runners["SECTOR_MOMENTUM"]() == {"SECTOR_MOMENTUM": 100.0}

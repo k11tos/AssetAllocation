@@ -14,9 +14,9 @@ import pytest
 def main_module(monkeypatch):
     """Load main with offline-safe stub modules for deterministic smoke testing."""
     config_module = types.ModuleType("config")
-    config_module.STRATEGY_CONFIG = types.SimpleNamespace(
-        TOTAL_STRATEGIES=2, TICKER_FILE="unused.json"
-    )
+    config_module.STRATEGY_CONFIG = types.SimpleNamespace(TICKER_FILE="unused.json")
+    config_module.SCHEDULED_STRATEGIES = ["HAA", "KAW", "SECTOR_MOMENTUM"]
+    config_module.SCHEDULED_STRATEGY_WEIGHTS = {"HAA": 45.0, "KAW": 45.0, "SECTOR_MOMENTUM": 10.0}
     config_module.validate_config = lambda: True
 
     portfolio_module = types.ModuleType("portfolio")
@@ -32,6 +32,7 @@ def main_module(monkeypatch):
     portfolio_module.get_korean_all_weather_allocation = (
         lambda *_args, **_kwargs: {}
     )
+    portfolio_module.get_sector_momentum_allocation = lambda *_args, **_kwargs: {}
     portfolio_module.print_info_message = lambda *_args, **_kwargs: None
 
     strategy_runner_module = types.ModuleType("strategy_runner")
@@ -88,6 +89,7 @@ def test_main_scheduled_smoke_success_offline(monkeypatch, main_module):
             return_value={
                 "HAA": {"SPY": 60.0, "QQQ": 40.0},
                 "KAW": {"TIGER S&P500": 100.0},
+                "SECTOR_MOMENTUM": {"XLK": 100.0},
             }
         ),
     )
@@ -107,13 +109,14 @@ def test_main_scheduled_smoke_success_offline(monkeypatch, main_module):
 
     main_module.validate_config.assert_called_once_with()
     main_module.load_tickers.assert_called_once_with()
-    main_module.run_selected_strategies.assert_called_once_with(["HAA", "KAW"], "main")
+    main_module.run_selected_strategies.assert_called_once_with(["HAA", "KAW", "SECTOR_MOMENTUM"], "main")
 
     assert info_message_mock.call_count == 1
     rendered_report = info_message_mock.call_args_list[0].args[0]
     assert rendered_report.startswith("📊 자산 배분 리포트 | 2026-01-15 (Thu)")
-    assert "✅ 성공률 100.0% (2/2)" in rendered_report
-    assert "\n\n[HAA]\n- SPY 30.00%\n- QQQ 20.00%" in rendered_report
-    assert "\n\n[KAW]\n- TIGER S&P500 50.00%" in rendered_report
+    assert "✅ 성공률 100.0% (3/3)" in rendered_report
+    assert "\n\n[HAA]\n- SPY 27.00%\n- QQQ 18.00%" in rendered_report
+    assert "\n\n[KAW]\n- TIGER S&P500 45.00%" in rendered_report
+    assert "\n\n[SECTOR_MOMENTUM]\n- XLK 10.00%" in rendered_report
 
     performance_monitor.log_summary.assert_called_once_with()

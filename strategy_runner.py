@@ -20,6 +20,7 @@ _STRATEGY_REGISTRY: Dict[str, Dict[str, str]] = {
     "main": {
         "HAA": "execute_haa_strategy",
         "KAW": "execute_kaw_strategy",
+        "SECTOR_MOMENTUM": "execute_sector_momentum_strategy",
     },
 }
 

@@ -18,7 +18,9 @@ from exceptions import StrategyExecutionError
 def main_module(monkeypatch):
     """Load main with test-scoped stub modules for deterministic/offline tests."""
     config_module = types.ModuleType("config")
-    config_module.STRATEGY_CONFIG = types.SimpleNamespace(TOTAL_STRATEGIES=2)
+    config_module.STRATEGY_CONFIG = types.SimpleNamespace()
+    config_module.SCHEDULED_STRATEGIES = ["HAA", "KAW", "SECTOR_MOMENTUM"]
+    config_module.SCHEDULED_STRATEGY_WEIGHTS = {"HAA": 45.0, "KAW": 45.0, "SECTOR_MOMENTUM": 10.0}
     config_module.validate_config = lambda: True
 
     portfolio_module = types.ModuleType("portfolio")
@@ -34,6 +36,7 @@ def main_module(monkeypatch):
     portfolio_module.get_korean_all_weather_allocation = (
         lambda *_args, **_kwargs: {}
     )
+    portfolio_module.get_sector_momentum_allocation = lambda *_args, **_kwargs: {}
     portfolio_module.print_info_message = lambda *_args, **_kwargs: None
 
     logging_config_module = types.ModuleType("utils.logging_config")
@@ -83,7 +86,7 @@ def main_module(monkeypatch):
     return importlib.import_module("main")
 
 
-def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_result):
+def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_result, sector_momentum_result):
     """Run main.main() with deterministic strategy outcomes and return mocks."""
     info_message_mock = Mock()
     performance_monitor = Mock()
@@ -126,6 +129,13 @@ def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_re
         if isinstance(kaw_result, Exception)
         else Mock(return_value=kaw_result),
     )
+    monkeypatch.setattr(
+        main_module,
+        "execute_sector_momentum_strategy",
+        Mock(side_effect=sector_momentum_result)
+        if isinstance(sector_momentum_result, Exception)
+        else Mock(return_value=sector_momentum_result),
+    )
 
     main_module.main()
     return (
@@ -134,6 +144,53 @@ def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_re
         run_selected_mock,
     )
 
+
+
+
+def test_execute_sector_momentum_strategy_uses_expected_data_tuple_positions(
+    monkeypatch, main_module
+):
+    momentum_score = {"first": 1.0}
+    momentum_score_simple = {"second": 2.0}
+    profit_12month = {"third": 3.0}
+    profit_6month = {"fourth": 4.0}
+    sma_12month = {"fifth": 5.0}
+    today_price = {"sixth": 6.0}
+    expected_allocation = {"XLK": 100.0}
+
+    get_required_tickers_mock = Mock(return_value=["XLK", "XLE"])
+    get_financial_data_mock = Mock(
+        return_value=(
+            momentum_score,
+            momentum_score_simple,
+            profit_12month,
+            profit_6month,
+            sma_12month,
+            today_price,
+        )
+    )
+    get_sector_momentum_allocation_mock = Mock(return_value=expected_allocation)
+
+    monkeypatch.setattr(
+        main_module,
+        "get_required_tickers_for_strategy",
+        get_required_tickers_mock,
+    )
+    monkeypatch.setattr(main_module, "get_financial_data", get_financial_data_mock)
+    monkeypatch.setattr(
+        main_module,
+        "get_sector_momentum_allocation",
+        get_sector_momentum_allocation_mock,
+    )
+
+    result = main_module.execute_sector_momentum_strategy()
+
+    get_required_tickers_mock.assert_called_once_with("sector_momentum")
+    get_financial_data_mock.assert_called_once_with("XLK XLE")
+    get_sector_momentum_allocation_mock.assert_called_once_with(
+        momentum_score, sma_12month, today_price
+    )
+    assert result == expected_allocation
 
 def test_main_exits_when_validate_config_fails(monkeypatch, main_module):
     """validate_config() is False -> process exits with code 1."""
@@ -160,16 +217,17 @@ def test_main_succeeds_when_haa_and_kaw_succeed(monkeypatch, main_module):
             main_module,
             haa_result={"SPY": 50.0},
             kaw_result={"TIGER S&P500": 50.0},
+            sector_momentum_result={"XLK": 100.0},
         )
     )
 
-    run_selected_mock.assert_called_once_with(["HAA", "KAW"], "main")
+    run_selected_mock.assert_called_once_with(["HAA", "KAW", "SECTOR_MOMENTUM"], "main")
     assert info_message_mock.call_count == 1
     rendered_report = info_message_mock.call_args_list[0].args[0]
     assert rendered_report.startswith("📊 자산 배분 리포트 | ")
-    assert "✅ 성공률 100.0% (2/2)" in rendered_report
-    assert "\n\n[HAA]\n- SPY 25.00%" in rendered_report
-    assert "\n\n[KAW]\n- TIGER S&P500 25.00%" in rendered_report
+    assert "✅ 성공률 100.0% (3/3)" in rendered_report
+    assert "\n\n[HAA]\n- SPY 22.50%" in rendered_report
+    assert "\n\n[KAW]\n- TIGER S&P500 22.50%" in rendered_report
     performance_monitor.log_summary.assert_called_once()
 
 
@@ -181,11 +239,12 @@ def test_main_continues_when_haa_fails_and_kaw_succeeds(monkeypatch, main_module
             main_module,
             haa_result=None,
             kaw_result={"TIGER S&P500": 100.0},
+            sector_momentum_result={"XLK": 100.0},
         )
     )
 
     rendered_report = info_message_mock.call_args_list[0].args[0]
-    assert "✅ 성공률 50.0% (1/2)" in rendered_report
+    assert "✅ 성공률 66.7% (2/3)" in rendered_report
     assert "[HAA]" not in rendered_report
     assert "[KAW]" in rendered_report
     performance_monitor.log_summary.assert_called_once()
@@ -199,11 +258,12 @@ def test_main_continues_when_haa_succeeds_and_kaw_fails(monkeypatch, main_module
             main_module,
             haa_result={"SPY": 100.0},
             kaw_result=StrategyExecutionError("kaw failed"),
+            sector_momentum_result={"XLK": 100.0},
         )
     )
 
     rendered_report = info_message_mock.call_args_list[0].args[0]
-    assert "✅ 성공률 50.0% (1/2)" in rendered_report
+    assert "✅ 성공률 66.7% (2/3)" in rendered_report
     assert "[HAA]" in rendered_report
     assert "[KAW]" not in rendered_report
     performance_monitor.log_summary.assert_called_once()
@@ -239,7 +299,7 @@ def test_main_exits_when_all_strategies_fail(
         main_module.main()
 
     assert exc.value.code == 1
-    assert "✅ 성공률 0.0% (0/2)" in info_message_mock.call_args_list[0].args[0]
+    assert "✅ 성공률 0.0% (0/3)" in info_message_mock.call_args_list[0].args[0]
     performance_monitor.log_summary.assert_called_once()
     assert not latest_snapshot.exists()
     assert not list(history_snapshot_dir.glob("*.json"))
@@ -264,6 +324,7 @@ def test_main_saves_latest_and_history_results(
         main_module,
         haa_result={"SPY": 50.0},
         kaw_result={"TIGER S&P500": 50.0},
+        sector_momentum_result={"XLK": 100.0},
     )
 
     assert latest_path.exists()
@@ -306,6 +367,7 @@ def test_main_history_snapshot_filename_uses_execution_timezone_clock(
         main_module,
         haa_result={"SPY": 50.0},
         kaw_result={"TIGER S&P500": 50.0},
+        sector_momentum_result={"XLK": 100.0},
     )
 
     history_files = list(history_dir.glob("*.json"))
@@ -346,6 +408,7 @@ def test_main_logs_diff_when_previous_snapshot_exists(
         main_module,
         haa_result={"SPY": 50.0, "QQQ": 50.0},
         kaw_result={"TIGER S&P500": 100.0},
+        sector_momentum_result={"XLK": 100.0},
     )
 
     logger_messages = [
@@ -393,16 +456,17 @@ def test_main_reports_compact_diff_in_info_messages(
         main_module,
         haa_result={"SPY": 50.0, "IEF": 50.0},
         kaw_result={"TIGER S&P500": 100.0},
+        sector_momentum_result={"XLK": 100.0},
     )
 
     assert info_message_mock.call_count == 1
     rendered_report = info_message_mock.call_args_list[0].args[0]
     assert rendered_report.startswith("📊 자산 배분 리포트 | ")
-    assert "✅ 성공률 100.0% (2/2)" in rendered_report
+    assert "✅ 성공률 100.0% (3/3)" in rendered_report
     assert "[HAA]" in rendered_report
     assert "[KAW]" in rendered_report
     assert "🔄 변경 사항" in rendered_report
-    assert "1개 전략 변경 / 2개 항목 변경" in rendered_report
+    assert "2개 전략 변경 / 3개 항목 변경" in rendered_report
 
 
 def test_main_skips_compact_diff_message_when_no_changes(
@@ -439,6 +503,7 @@ def test_main_skips_compact_diff_message_when_no_changes(
         main_module,
         haa_result={"SPY": 50.0},
         kaw_result={"TIGER S&P500": 50.0},
+        sector_momentum_result={"XLK": 100.0},
     )
 
     emitted_messages = [call.args[0] for call in info_message_mock.call_args_list]
@@ -478,6 +543,7 @@ def test_main_continues_when_previous_snapshot_is_malformed_but_loadable(
         main_module,
         haa_result={"SPY": 100.0},
         kaw_result={"TIGER S&P500": 100.0},
+        sector_momentum_result={"XLK": 100.0},
     )
 
     saved_data = json.loads(latest_path.read_text(encoding="utf-8"))
@@ -519,6 +585,7 @@ def test_main_saves_snapshot_even_when_diff_formatting_fails(
         main_module,
         haa_result={"SPY": 70.0, "QQQ": 30.0},
         kaw_result={"TIGER S&P500": 100.0},
+        sector_momentum_result={"XLK": 100.0},
     )
 
     latest_data = json.loads(latest_path.read_text(encoding="utf-8"))
@@ -540,12 +607,12 @@ def test_print_asset_allocation_emits_grouped_strategy_block(monkeypatch, main_m
     rendered = main_module.print_asset_allocation(
         {"SPY": 100.0, "QQQ": 50.0},
         {"SPY": "S&P 500", "QQQ": "NASDAQ 100"},
-        2,
+        45.0,
         "[HAA]",
     )
 
     assert rendered == (
-        "[HAA]\n- S&P 500 50.00%\n- NASDAQ 100 25.00%"
+        "[HAA]\n- S&P 500 45.00%\n- NASDAQ 100 22.50%"
     )
 
 
@@ -572,12 +639,13 @@ def test_main_emits_success_line_immediately_after_header(monkeypatch, main_modu
         main_module,
         haa_result={"SPY": 50.0},
         kaw_result={"TIGER S&P500": 50.0},
+        sector_momentum_result={"XLK": 100.0},
     )
 
     rendered_report = info_message_mock.call_args_list[0].args[0]
     report_lines = rendered_report.splitlines()
     assert report_lines[0].startswith("📊 자산 배분 리포트 | ")
-    assert report_lines[2] == "✅ 성공률 100.0% (2/2)"
+    assert report_lines[2] == "✅ 성공률 100.0% (3/3)"
 
 
 def test_format_compact_weekday_returns_short_name(main_module):
