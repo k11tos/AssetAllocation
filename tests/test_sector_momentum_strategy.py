@@ -1,0 +1,84 @@
+#!/usr/bin/python3
+"""Tests for Sector Momentum strategy."""
+
+from strategies.sector_momentum_strategy import SectorMomentumStrategy
+
+
+class TestSectorMomentumStrategy:
+    def setup_method(self):
+        self.strategy = SectorMomentumStrategy()
+
+    def test_top_2_positive_momentum_selected(self):
+        momentum_score = {
+            "XLK": 1.2,
+            "XLC": 0.8,
+            "XLI": 0.2,
+            "XLF": -0.1,
+        }
+        sma_12month = {"XLK": 100, "XLC": 90, "XLI": 80, "XLF": 75}
+        today_price = {"XLK": 110, "XLC": 95, "XLI": 85, "XLF": 70}
+
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": momentum_score,
+                "sma_12month": sma_12month,
+                "today_price": today_price,
+            }
+        )
+
+        assert result == {"XLK": 50.0, "XLC": 50.0}
+
+    def test_negative_momentum_excluded(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": -0.2, "XLC": 0.4},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 105, "XLC": 95},
+            }
+        )
+
+        assert result == {"XLC": 50.0, "SGOV": 50.0}
+
+    def test_below_12month_sma_excluded(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 0.6, "XLC": 0.4},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 99, "XLC": 95},
+            }
+        )
+
+        assert result == {"XLC": 50.0, "SGOV": 50.0}
+
+    def test_one_passing_etf_gets_50_and_sgov_50(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 0.7},
+                "sma_12month": {"XLK": 100},
+                "today_price": {"XLK": 110},
+            }
+        )
+
+        assert result == {"XLK": 50.0, "SGOV": 50.0}
+
+    def test_zero_passing_etf_gets_100_sgov(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": -0.1, "XLC": -0.2},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 110, "XLC": 95},
+            }
+        )
+
+        assert result == {"SGOV": 100.0}
+
+    def test_missing_etf_data_skipped_safely(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 0.9, "XLC": 0.8},
+                "sma_12month": {"XLC": 90},
+                "today_price": {"XLC": 95},
+            }
+        )
+
+        assert result == {"XLC": 50.0, "SGOV": 50.0}
