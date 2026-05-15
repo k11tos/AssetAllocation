@@ -33,7 +33,11 @@ LOGGER = LoggingConfig.get_logger(__name__)
 
 
 class _MinuteCreditLimiter:
-    """Process-wide rolling-window limiter for Twelve Data symbol credits."""
+    """Process-wide rolling-window limiter for Twelve Data symbol credits.
+
+    Tests can inject fake ``time_func`` / ``sleep_func`` for deterministic behavior
+    without real sleeping.
+    """
 
     def __init__(
         self,
@@ -99,6 +103,11 @@ class YahooPriceProvider(PriceProvider):
 
 
 class TwelveDataPriceProvider(PriceProvider):
+    """Twelve Data provider with shared process-wide minute-credit limiting.
+
+    For tests, inject a fully configured limiter via ``limiter=...``.
+    """
+
     adjust_mode = "all"
     base_url = "https://api.twelvedata.com/time_series"
     _shared_limiters: Dict[Tuple[int, int], _MinuteCreditLimiter] = {}
@@ -109,14 +118,10 @@ class TwelveDataPriceProvider(PriceProvider):
         max_credits_per_minute: int = 8,
         request_sleep_seconds: int = 65,
         limiter: Optional[_MinuteCreditLimiter] = None,
-        time_func: Optional[Any] = None,
-        sleep_func: Optional[Any] = None,
     ):
         self.api_key = api_key
         self.max_credits_per_minute = max_credits_per_minute
         self.request_sleep_seconds = request_sleep_seconds
-        self._time_func = time_func or time.time
-        self._sleep_func = sleep_func or time.sleep
         self._limiter_override = limiter
 
     @classmethod
