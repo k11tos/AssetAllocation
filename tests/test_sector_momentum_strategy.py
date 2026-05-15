@@ -89,3 +89,49 @@ def test_portfolio_wrapper_calls_strategy():
     )
 
     assert result == {"XLK": 50.0, "XLC": 50.0}
+
+
+def test_missing_sma_input_key_falls_back_to_sgov(strategy):
+    data = {
+        "momentum_score": {"XLK": 0.4, "XLC": 0.3},
+        "today_price": {"XLK": 110.0, "XLC": 115.0},
+    }
+
+    result = strategy.calculate_allocation(data)
+
+    assert result == {"SGOV": 100.0}
+
+
+def test_today_price_none_falls_back_to_sgov(strategy):
+    data = {
+        "momentum_score": {"XLK": 0.4, "XLC": 0.3},
+        "sma_12month": {"XLK": 100.0, "XLC": 100.0},
+        "today_price": None,
+    }
+
+    result = strategy.calculate_allocation(data)
+
+    assert result == {"SGOV": 100.0}
+
+
+def test_all_required_inputs_missing_or_empty_raises_value_error(strategy):
+    with pytest.raises(ValueError):
+        strategy.calculate_allocation({})
+
+    with pytest.raises(ValueError):
+        strategy.calculate_allocation(
+            {
+                "momentum_score": None,
+                "sma_12month": [],
+                "today_price": "invalid",
+            }
+        )
+
+    with pytest.raises(ValueError):
+        strategy.calculate_allocation(
+            {
+                "momentum_score": {},
+                "sma_12month": {},
+                "today_price": {},
+            }
+        )

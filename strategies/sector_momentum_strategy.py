@@ -20,9 +20,19 @@ class SectorMomentumStrategy(BaseStrategy):
 
     def calculate_allocation(self, data: Dict[str, Any]) -> Dict[str, float]:
         """Sector Momentum 전략 배분을 계산합니다."""
-        momentum_score = data["momentum_score"]
-        sma_12month = data["sma_12month"]
-        today_price = data["today_price"]
+        momentum_score_raw = data.get("momentum_score")
+        sma_12month_raw = data.get("sma_12month")
+        today_price_raw = data.get("today_price")
+
+        momentum_score = (
+            momentum_score_raw if isinstance(momentum_score_raw, dict) else {}
+        )
+        sma_12month = (
+            sma_12month_raw if isinstance(sma_12month_raw, dict) else {}
+        )
+        today_price = (
+            today_price_raw if isinstance(today_price_raw, dict) else {}
+        )
 
         sector_tickers = SECTOR_MOMENTUM_CONFIG.SECTOR_TICKERS
         if not sector_tickers:
@@ -30,7 +40,7 @@ class SectorMomentumStrategy(BaseStrategy):
 
         required_inputs = [momentum_score, sma_12month, today_price]
         if all(not source for source in required_inputs):
-            raise ValueError("All required inputs are empty")
+            raise ValueError("All required inputs are missing, invalid, or empty")
 
         candidates: List[str] = []
 
