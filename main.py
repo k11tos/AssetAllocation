@@ -176,12 +176,12 @@ def execute_sector_momentum_strategy() -> Optional[Dict[str, float]]:
         )
 
         (
-            _,
-            _,
             momentum_score,
+            _,
+            _,
+            _,
             sma_12month,
             today_price,
-            _,
         ) = get_financial_data(" ".join(required_tickers))
 
         sector_momentum = get_sector_momentum_allocation(

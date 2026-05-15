@@ -145,6 +145,53 @@ def _run_main_with_strategy_results(monkeypatch, main_module, haa_result, kaw_re
     )
 
 
+
+
+def test_execute_sector_momentum_strategy_uses_expected_data_tuple_positions(
+    monkeypatch, main_module
+):
+    momentum_score = {"first": 1.0}
+    momentum_score_simple = {"second": 2.0}
+    profit_12month = {"third": 3.0}
+    profit_6month = {"fourth": 4.0}
+    sma_12month = {"fifth": 5.0}
+    today_price = {"sixth": 6.0}
+    expected_allocation = {"XLK": 100.0}
+
+    get_required_tickers_mock = Mock(return_value=["XLK", "XLE"])
+    get_financial_data_mock = Mock(
+        return_value=(
+            momentum_score,
+            momentum_score_simple,
+            profit_12month,
+            profit_6month,
+            sma_12month,
+            today_price,
+        )
+    )
+    get_sector_momentum_allocation_mock = Mock(return_value=expected_allocation)
+
+    monkeypatch.setattr(
+        main_module,
+        "get_required_tickers_for_strategy",
+        get_required_tickers_mock,
+    )
+    monkeypatch.setattr(main_module, "get_financial_data", get_financial_data_mock)
+    monkeypatch.setattr(
+        main_module,
+        "get_sector_momentum_allocation",
+        get_sector_momentum_allocation_mock,
+    )
+
+    result = main_module.execute_sector_momentum_strategy()
+
+    get_required_tickers_mock.assert_called_once_with("sector_momentum")
+    get_financial_data_mock.assert_called_once_with("XLK XLE")
+    get_sector_momentum_allocation_mock.assert_called_once_with(
+        momentum_score, sma_12month, today_price
+    )
+    assert result == expected_allocation
+
 def test_main_exits_when_validate_config_fails(monkeypatch, main_module):
     """validate_config() is False -> process exits with code 1."""
     performance_monitor = Mock()
