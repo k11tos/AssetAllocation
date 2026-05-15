@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, Mock, patch
 import requests
 
 from services.communication_service import CommunicationService
-from services.data_service import DataService
+from services.data_service import DataService, TwelveDataPriceProvider, _MinuteCreditLimiter
 
 
 class TestDataService(unittest.TestCase):
@@ -26,12 +26,14 @@ class TestDataService(unittest.TestCase):
         )
         self.api_config_patcher.start()
         self.data_service = DataService(cache_ttl_hours=0.01)  # 매우 짧은 TTL
+        TwelveDataPriceProvider._shared_limiters.clear()
 
     def tearDown(self):
         # 임시 파일 정리
         import shutil
 
         self.api_config_patcher.stop()
+        TwelveDataPriceProvider._shared_limiters.clear()
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     @patch("services.data_service.Fred")
@@ -334,12 +336,26 @@ class TestDataService(unittest.TestCase):
         self.assertIn("TIP", frame.columns)
         self.assertTrue(pd.api.types.is_numeric_dtype(frame["TIP"]))
 
-    def test_twelvedata_fetch_batches_and_sleeps_between_batches(self):
+    def test_twelvedata_fetch_batches_without_sleep_when_under_limit(self):
         import pandas as pd
-        from services.data_service import TwelveDataPriceProvider
+        clock = {"now": 0.0}
+        slept = []
 
+        def fake_time():
+            return clock["now"]
+
+        def fake_sleep(seconds):
+            slept.append(seconds)
+            clock["now"] += seconds
+
+        limiter = _MinuteCreditLimiter(
+            max_credits_per_minute=10,
+            request_sleep_seconds=65,
+            time_func=fake_time,
+            sleep_func=fake_sleep,
+        )
         provider = TwelveDataPriceProvider(
-            "key", max_credits_per_minute=2, request_sleep_seconds=65
+            "key", max_credits_per_minute=10, request_sleep_seconds=65, limiter=limiter
         )
         symbols = ["SPY", "IWM", "IEFA", "TIP", "BIL"]
 
@@ -348,21 +364,82 @@ class TestDataService(unittest.TestCase):
                 [100.0], index=pd.to_datetime(["2026-01-02"]), name=symbol
             )
 
-        with patch.object(provider, "_fetch_symbol", side_effect=fake_fetch) as mock_fetch, patch(
-            "services.data_service.time.sleep"
-        ) as mock_sleep:
+        with patch.object(provider, "_fetch_symbol", side_effect=fake_fetch) as mock_fetch:
             frame = provider.fetch(symbols)
 
         self.assertEqual(mock_fetch.call_count, len(symbols))
         self.assertEqual(frame.shape[1], len(symbols))
-        self.assertEqual(mock_sleep.call_count, 2)  # 3 batches -> 2 sleeps
-        mock_sleep.assert_called_with(65)
+        self.assertEqual(slept, [])
+
+    def test_twelvedata_rate_limit_is_shared_across_provider_instances(self):
+        import pandas as pd
+        clock = {"now": 0.0}
+        slept = []
+
+        def fake_time():
+            return clock["now"]
+
+        def fake_sleep(seconds):
+            slept.append(seconds)
+            clock["now"] += seconds
+
+        limiter = _MinuteCreditLimiter(
+            max_credits_per_minute=2,
+            request_sleep_seconds=65,
+            time_func=fake_time,
+            sleep_func=fake_sleep,
+        )
+        provider_1 = TwelveDataPriceProvider("key", limiter=limiter)
+        provider_2 = TwelveDataPriceProvider("key", limiter=limiter)
+
+        def fake_fetch(symbol):
+            return pd.Series([100.0], index=pd.to_datetime(["2026-01-02"]), name=symbol)
+
+        with patch.object(provider_1, "_fetch_symbol", side_effect=fake_fetch), patch.object(
+            provider_2, "_fetch_symbol", side_effect=fake_fetch
+        ):
+            provider_1.fetch(["SPY", "IWM"])
+            provider_2.fetch(["TIP"])
+
+        self.assertEqual(len(slept), 1)
+        self.assertGreaterEqual(slept[0], 60.0)
+
+    def test_twelvedata_json_error_payload_raises_data_retrieval_error(self):
+        from exceptions import DataRetrievalError
+
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {
+            "status": "error",
+            "code": 429,
+            "message": "You have run out of API credits for the current minute.",
+        }
+        with patch("services.data_service.requests.get", return_value=mock_response):
+            with self.assertRaisesRegex(
+                DataRetrievalError,
+                "TIP",
+            ):
+                TwelveDataPriceProvider(
+                    "key",
+                    limiter=_MinuteCreditLimiter(
+                        max_credits_per_minute=10,
+                        request_sleep_seconds=65,
+                        time_func=lambda: 0.0,
+                        sleep_func=lambda _seconds: None,
+                    ),
+                ).fetch(["TIP"])
 
     def test_twelvedata_429_raises_clear_guidance(self):
-        from services.data_service import TwelveDataPriceProvider
-
         provider = TwelveDataPriceProvider(
-            "key", max_credits_per_minute=2, request_sleep_seconds=65
+            "key",
+            max_credits_per_minute=2,
+            request_sleep_seconds=65,
+            limiter=_MinuteCreditLimiter(
+                max_credits_per_minute=10,
+                request_sleep_seconds=65,
+                time_func=lambda: 0.0,
+                sleep_func=lambda _seconds: None,
+            ),
         )
         response = Mock(status_code=429)
         http_error = requests.HTTPError("429 Too Many Requests")

@@ -34,8 +34,8 @@ if __name__ == "__main__":
     unittest.main()
 
 
-def test_get_required_tickers_for_sector_momentum_includes_defensive_last():
-    """Sector Momentum 티커는 섹터 + 방어자산을 순서대로 포함해야 함"""
+def test_get_required_tickers_for_sector_momentum_excludes_defensive_ticker():
+    """Sector Momentum 티커는 섹터 ETF만 순서대로 포함해야 함"""
     result = get_required_tickers_for_strategy("sector_momentum")
     expected = [
         "XLK",
@@ -49,7 +49,8 @@ def test_get_required_tickers_for_sector_momentum_includes_defensive_last():
         "XLU",
         "XLB",
         "XLRE",
-        "SGOV",
     ]
 
     assert result == expected
+    assert "SGOV" not in result
+    assert len(result) == len(set(result))
