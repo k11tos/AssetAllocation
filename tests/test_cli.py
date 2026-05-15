@@ -71,6 +71,7 @@ def cli_module(monkeypatch):
     cli_executor_module.run_laa_strategy = lambda: {"LAA": 100.0}
     cli_executor_module.run_bdaa_strategy = lambda: {"BDAA": 100.0}
     cli_executor_module.run_mdm_strategy = lambda: {"MDM": 100.0}
+    cli_executor_module.run_sector_momentum_strategy = lambda: {"SECTOR_MOMENTUM": 100.0}
 
     monkeypatch.delitem(sys.modules, "cli", raising=False)
     monkeypatch.delitem(sys.modules, "cli_strategy_executor", raising=False)
@@ -109,6 +110,7 @@ def test_cli_smoke_all_strategies_json_end_to_end(
         "LAA": {"IWD": 25.0, "GLD": 25.0, "IEF": 25.0, "QQQ": 25.0},
         "BDAA": {"SPY": 50.0, "TLT": 50.0},
         "MDM": {"SHY": 100.0},
+        "SECTOR_MOMENTUM": {"XLF": 100.0},
     }
 
     monkeypatch.setattr(
@@ -146,6 +148,11 @@ def test_cli_smoke_all_strategies_json_end_to_end(
         "run_mdm_strategy",
         Mock(return_value=expected_allocations["MDM"]),
     )
+    monkeypatch.setattr(
+        cli_executor_module,
+        "run_sector_momentum_strategy",
+        Mock(return_value=expected_allocations["SECTOR_MOMENTUM"]),
+    )
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "all", "--output", "json"])
 
@@ -164,6 +171,7 @@ def test_strategy_haa_runs_only_haa(monkeypatch, cli_module, capsys):
     laa_runner = Mock(return_value={"LAA": 100.0})
     bdaa_runner = Mock(return_value={"BDAA": 100.0})
     mdm_runner = Mock(return_value={"MDM": 100.0})
+    sector_momentum_runner = Mock(return_value={"SECTOR_MOMENTUM": 100.0})
 
     monkeypatch.setattr(cli_executor_module, "run_haa_strategy", haa_runner)
     monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", kaw_runner)
@@ -172,6 +180,9 @@ def test_strategy_haa_runs_only_haa(monkeypatch, cli_module, capsys):
     monkeypatch.setattr(cli_executor_module, "run_laa_strategy", laa_runner)
     monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", bdaa_runner)
     monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", mdm_runner)
+    monkeypatch.setattr(
+        cli_executor_module, "run_sector_momentum_strategy", sector_momentum_runner
+    )
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "haa"])
 
@@ -182,6 +193,7 @@ def test_strategy_haa_runs_only_haa(monkeypatch, cli_module, capsys):
     assert laa_runner.call_count == 0
     assert bdaa_runner.call_count == 0
     assert mdm_runner.call_count == 0
+    assert sector_momentum_runner.call_count == 0
     assert "HAA:" in capsys.readouterr().out
 
 
@@ -197,6 +209,7 @@ def test_strategy_kaw_runs_only_kaw(monkeypatch, cli_module, capsys):
     monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_sector_momentum_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "kaw"])
 
@@ -284,6 +297,7 @@ def test_strategy_all_runs_all_supported_strategies(
         "run_laa_strategy": Mock(return_value={"LAA": 1.0}),
         "run_bdaa_strategy": Mock(return_value={"BDAA": 1.0}),
         "run_mdm_strategy": Mock(return_value={"MDM": 1.0}),
+        "run_sector_momentum_strategy": Mock(return_value={"SECTOR_MOMENTUM": 1.0}),
     }
 
     for attr_name, attr_mock in strategy_mocks.items():
@@ -295,7 +309,7 @@ def test_strategy_all_runs_all_supported_strategies(
         assert attr_mock.call_count == 1
 
     output = capsys.readouterr().out
-    for strategy_name in ["HAA", "KAW", "BAA", "VAA", "LAA", "BDAA", "MDM"]:
+    for strategy_name in ["HAA", "KAW", "BAA", "VAA", "LAA", "BDAA", "MDM", "SECTOR_MOMENTUM"]:
         assert f"{strategy_name}:" in output
 
 
@@ -312,6 +326,7 @@ def test_output_text_returns_formatted_text(monkeypatch, cli_module, capsys):
     monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_sector_momentum_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "haa", "--output", "text"])
 
@@ -331,6 +346,7 @@ def test_output_json_returns_valid_json(monkeypatch, cli_module, capsys):
     monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_sector_momentum_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "haa", "--output", "json"])
 
@@ -348,6 +364,7 @@ def test_output_csv_returns_expected_headers(monkeypatch, cli_module, capsys):
     monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_sector_momentum_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "haa", "--output", "csv"])
 
@@ -372,6 +389,7 @@ def test_save_json_writes_execution_results(
     monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_sector_momentum_strategy", Mock())
 
     _run_cli(
         monkeypatch,
@@ -408,6 +426,7 @@ def test_save_json_not_used_by_default(
     monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_sector_momentum_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--strategy", "haa"])
 
@@ -674,6 +693,7 @@ def test_compare_json_with_json_output_keeps_stdout_valid_json(
     monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_sector_momentum_strategy", Mock())
 
     _run_cli(
         monkeypatch,
@@ -721,6 +741,7 @@ def test_compare_json_with_csv_output_keeps_stdout_csv_only(
     monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_sector_momentum_strategy", Mock())
 
     _run_cli(
         monkeypatch,
@@ -779,6 +800,7 @@ def test_rebalance_uses_rebalancing_flow(monkeypatch, cli_module, capsys):
     monkeypatch.setattr(cli_executor_module, "run_laa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", Mock())
     monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", Mock())
+    monkeypatch.setattr(cli_executor_module, "run_sector_momentum_strategy", Mock())
 
     _run_cli(monkeypatch, cli_module, ["--rebalance", "dummy.json"])
 

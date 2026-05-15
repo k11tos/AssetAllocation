@@ -10,6 +10,7 @@ from portfolio import (
     get_korean_all_weather_allocation,
     get_laa_allocation,
     get_mdm_allocation,
+    get_sector_momentum_allocation,
     get_vaa_allocation,
 )
 from services.data_service import DataService
@@ -124,4 +125,21 @@ def run_mdm_strategy() -> Optional[Dict[str, float]]:
         return get_mdm_allocation(profit_12month, profit_6month)
     except Exception as e:
         print(f"MDM strategy failed: {e}")
+        return None
+
+
+def run_sector_momentum_strategy() -> Optional[Dict[str, float]]:
+    """Sector Momentum 전략을 최적화된 데이터로 실행합니다."""
+    try:
+        required_tickers = get_required_tickers_for_strategy("sector_momentum")
+        print(f"🔍 Sector Momentum 전략: {len(required_tickers)}개 자산 데이터 요청")
+
+        data_service = DataService()
+        momentum_score, _, _, _, sma_12month, today_price = (
+            data_service.get_financial_data(" ".join(required_tickers))
+        )
+
+        return get_sector_momentum_allocation(momentum_score, sma_12month, today_price)
+    except Exception as e:
+        print(f"Sector Momentum strategy failed: {e}")
         return None

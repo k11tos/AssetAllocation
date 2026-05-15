@@ -15,6 +15,7 @@ _STRATEGY_REGISTRY: Dict[str, Dict[str, str]] = {
         "LAA": "run_laa_strategy",
         "BDAA": "run_bdaa_strategy",
         "MDM": "run_mdm_strategy",
+        "SECTOR_MOMENTUM": "run_sector_momentum_strategy",
     },
     "main": {
         "HAA": "execute_haa_strategy",

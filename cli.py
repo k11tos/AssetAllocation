@@ -56,7 +56,7 @@ Examples:
     # 전략 선택
     parser.add_argument(
         "--strategy",
-        choices=["haa", "kaw", "baa", "vaa", "laa", "bdaa", "mdm", "all"],
+        choices=["haa", "kaw", "baa", "vaa", "laa", "bdaa", "mdm", "sector_momentum", "all"],
         default="all",
         help="실행할 전략 선택 (기본값: all)",
     )
@@ -525,7 +525,7 @@ def main():
         print(report)
         return
 
-    available_strategies = ["HAA", "KAW", "BAA", "VAA", "LAA", "BDAA", "MDM"]
+    available_strategies = ["HAA", "KAW", "BAA", "VAA", "LAA", "BDAA", "MDM", "SECTOR_MOMENTUM"]
     if args.strategy == "all":
         requested_strategies = available_strategies
     else:
