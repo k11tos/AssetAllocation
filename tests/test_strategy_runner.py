@@ -23,6 +23,7 @@ def fake_cli_executor_module(monkeypatch):
     cli_executor_module.run_laa_strategy = lambda: {"LAA": 100.0}
     cli_executor_module.run_bdaa_strategy = lambda: {"BDAA": 100.0}
     cli_executor_module.run_mdm_strategy = lambda: {"MDM": 100.0}
+    cli_executor_module.run_sector_momentum_strategy = lambda: {"SECTOR_MOMENTUM": 100.0}
 
     monkeypatch.setitem(sys.modules, "cli_strategy_executor", cli_executor_module)
     return cli_executor_module
@@ -31,7 +32,7 @@ def fake_cli_executor_module(monkeypatch):
 def test_get_available_strategy_runners_resolves_registry(fake_cli_executor_module):
     runners = get_available_strategy_runners("cli")
 
-    assert set(runners) == {"HAA", "KAW", "BAA", "VAA", "LAA", "BDAA", "MDM"}
+    assert set(runners) == {"HAA", "KAW", "BAA", "VAA", "LAA", "BDAA", "MDM", "SECTOR_MOMENTUM"}
     assert runners["HAA"]() == {"SPY": 100.0}
 
 
