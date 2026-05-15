@@ -9,6 +9,7 @@ from .haa_strategy import HAAStrategy
 from .korean_all_weather_strategy import KoreanAllWeatherStrategy
 from .laa_strategy import LAAStrategy
 from .mdm_strategy import MDMStrategy
+from .sector_momentum_strategy import SectorMomentumStrategy
 from .vaa_strategy import VAAStrategy
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "BAAStrategy",
     "LAAStrategy",
     "MDMStrategy",
+    "SectorMomentumStrategy",
 ]

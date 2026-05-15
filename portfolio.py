@@ -120,6 +120,33 @@ def get_baa_allocation(
     return baa_strategy.calculate_allocation(data)
 
 
+
+
+def get_sector_momentum_allocation(
+    momentum_score: Dict[str, float],
+    sma_12month: Dict[str, float],
+    today_price: Dict[str, float],
+) -> Dict[str, float]:
+    """
+    Get allocation for Sector Momentum strategy using the strategy class.
+
+    :param momentum_score: Dictionary with momentum scores
+    :param sma_12month: Dictionary with 12-month moving averages
+    :param today_price: Dictionary with current prices
+    :return: Dictionary with asset allocation percentages
+    """
+    from strategies.sector_momentum_strategy import SectorMomentumStrategy
+
+    strategy = SectorMomentumStrategy()
+    data = {
+        "momentum_score": momentum_score,
+        "sma_12month": sma_12month,
+        "today_price": today_price,
+    }
+
+    return strategy.calculate_allocation(data)
+
+
 def get_bdaa_allocation(profit_6month: Dict[str, float]) -> Dict[str, float]:
     """
     Get allocation for BDAA (Bond Dynamic Asset Allocation) strategy
