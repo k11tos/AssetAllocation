@@ -10,7 +10,12 @@ import sys
 from datetime import date
 from typing import Dict, List, Optional
 
-from config import STRATEGY_CONFIG, validate_config
+from config import (
+    SCHEDULED_STRATEGIES,
+    SCHEDULED_STRATEGY_WEIGHTS,
+    STRATEGY_CONFIG,
+    validate_config,
+)
 from execution_output import (
     format_compact_execution_diff_summary,
     format_execution_diff_summary,
@@ -28,6 +33,7 @@ from portfolio import (
     get_financial_data,
     get_hybrid_asset_allocation,
     get_korean_all_weather_allocation,
+    get_sector_momentum_allocation,
     print_info_message,
 )
 from strategy_runner import run_selected_strategies
@@ -158,6 +164,60 @@ def execute_kaw_strategy() -> Optional[Dict[str, float]]:
         return None
 
 
+def execute_sector_momentum_strategy() -> Optional[Dict[str, float]]:
+    """섹터 모멘텀 전략을 최적화된 데이터로 실행합니다."""
+    try:
+        LoggingConfig.log_strategy_start(LOGGER, "Sector Momentum")
+
+        required_tickers = get_required_tickers_for_strategy("sector_momentum")
+        LOGGER.info(
+            "🔍 Sector Momentum 전략: %d개 자산 데이터 요청",
+            len(required_tickers),
+        )
+
+        (
+            _,
+            _,
+            momentum_score,
+            sma_12month,
+            today_price,
+            _,
+        ) = get_financial_data(" ".join(required_tickers))
+
+        sector_momentum = get_sector_momentum_allocation(
+            momentum_score, sma_12month, today_price
+        )
+        LoggingConfig.log_strategy_success(LOGGER, "Sector Momentum")
+        LoggingConfig.log_allocation_result(
+            LOGGER, "Sector Momentum", sector_momentum
+        )
+        return sector_momentum
+
+    except DataValidationError as e:
+        LoggingConfig.log_strategy_failure(
+            LOGGER, "Sector Momentum", f"Data validation failed: {str(e)}"
+        )
+        return None
+    except DataRetrievalError as e:
+        LoggingConfig.log_strategy_failure(
+            LOGGER, "Sector Momentum", f"Data retrieval failed: {str(e)}"
+        )
+        return None
+    except NetworkError as e:
+        LoggingConfig.log_strategy_failure(
+            LOGGER, "Sector Momentum", f"Network error: {str(e)}"
+        )
+        return None
+    except StrategyExecutionError as e:
+        LoggingConfig.log_strategy_failure(
+            LOGGER, "Sector Momentum", f"Execution failed: {str(e)}"
+        )
+        return None
+    except Exception as e:
+        LoggingConfig.log_error_with_context(LOGGER, e, "Sector Momentum strategy")
+        return None
+
+
 def main() -> None:
     """
     Main function
@@ -170,7 +230,6 @@ def main() -> None:
 
     LOGGER.info("🚀 Starting asset allocation process...")
 
-    total_number_of_strategy = STRATEGY_CONFIG.TOTAL_STRATEGIES
     successful_strategies = 0
 
     try:
@@ -181,12 +240,14 @@ def main() -> None:
         current_date = get_execution_now().date()
         LOGGER.info("📅 Processing date: %s", current_date)
 
-        strategy_results = run_selected_strategies(["HAA", "KAW"], "main")
+        strategy_results = run_selected_strategies(SCHEDULED_STRATEGIES, "main")
 
         # 실행 결과 요약
-        haa_result = strategy_results["HAA"]
-        kaw_result = strategy_results["KAW"]
-        successful_strategies = int(bool(haa_result)) + int(bool(kaw_result))
+        total_number_of_strategy = len(SCHEDULED_STRATEGIES)
+        successful_strategies = sum(
+            int(bool(strategy_results.get(strategy_name)))
+            for strategy_name in SCHEDULED_STRATEGIES
+        )
         success_rate = (successful_strategies / total_number_of_strategy) * 100
 
         report_sections = [
@@ -198,28 +259,22 @@ def main() -> None:
             ),
         ]
 
-        # HAA 전략 실행
-        if haa_result:
-            report_sections.append(
-                print_asset_allocation(
-                    haa_result,
-                    etf_descriptions,
-                    total_number_of_strategy,
-                    "[HAA]",
+        for strategy_name in SCHEDULED_STRATEGIES:
+            strategy_result = strategy_results.get(strategy_name)
+            if not strategy_result:
+                LOGGER.warning(
+                    "⚠️ %s strategy failed - skipping output", strategy_name
                 )
-            )
-        else:
-            LOGGER.warning("⚠️ HAA strategy failed - skipping output")
+                continue
 
-        # 한국형 올웨더 전략 (항상 실행)
-        if kaw_result:
             report_sections.append(
                 print_asset_allocation(
-                    kaw_result, None, total_number_of_strategy, "[KAW]"
+                    strategy_result,
+                    etf_descriptions if strategy_name == "HAA" else None,
+                    SCHEDULED_STRATEGY_WEIGHTS[strategy_name],
+                    f"[{strategy_name}]",
                 )
             )
-        else:
-            LOGGER.warning("⚠️ KAW strategy failed - skipping output")
 
         LOGGER.info(
             "✅ Asset allocation process completed. "
@@ -332,14 +387,14 @@ def persist_scheduled_execution_result(
 def print_asset_allocation(
     asset_allocation: Dict[str, float],
     etf_descriptions: Optional[Dict[str, str]],
-    total_number_of_strategy: int,
+    strategy_weight_pct: float,
     strategy_name: str,
 ) -> str:
     """
     Print asset allocation results with enhanced Telegram formatting
     :param asset_allocation: Dictionary with asset allocation
     :param etf_descriptions: Dictionary mapping tickers to descriptions
-    :param total_number_of_strategy: Total number of strategies
+    :param strategy_weight_pct: Strategy sleeve weight percentage
     :param strategy_name: Name of the strategy
     :return: None
     """
@@ -347,7 +402,7 @@ def print_asset_allocation(
     allocations = [strategy_name]
 
     for key, value in asset_allocation.items():
-        percentage = round(value / total_number_of_strategy, 2)
+        percentage = round(value * strategy_weight_pct / 100, 2)
         display_name = (
             etf_descriptions.get(key, key) if etf_descriptions else key
         )

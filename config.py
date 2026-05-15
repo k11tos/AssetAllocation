@@ -32,6 +32,10 @@ def _get_positive_int_env(var_name: str, default: int) -> int:
     return parsed
 
 
+
+SCHEDULED_STRATEGIES = ["HAA", "KAW", "SECTOR_MOMENTUM"]
+SCHEDULED_STRATEGY_WEIGHTS = {"HAA": 45.0, "KAW": 45.0, "SECTOR_MOMENTUM": 10.0}
+
 class KoreanAllWeatherConstants:
     """한국형 올웨더 전략 상수들"""
 
@@ -73,7 +77,6 @@ class MomentumWeights:
 class StrategyConfig:
     """전략별 설정"""
 
-    TOTAL_STRATEGIES: int = 2
     TICKER_FILE: str = "us_etf_tickers.json"
     LOG_FILE: str = "logs/asset_allocation.log"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
