@@ -59,6 +59,21 @@ def cli_module(monkeypatch):
 
     perf_module = types.ModuleType("utils.performance_monitor")
     perf_module.get_performance_monitor = lambda: Mock()
+    haa_strategy_module = types.ModuleType("strategies.haa_strategy")
+
+    class _HAAStrategy:
+        def build_debug_report(self, *_args, **kwargs):
+            evaluation_date = kwargs.get("evaluation_date", "unknown")
+            tip_diagnostics = kwargs.get("tip_diagnostics") or {}
+            price_provider = tip_diagnostics.get("price_provider", "unknown")
+            return (
+                "HAA Decision Trace Report\n"
+                f"Evaluation date: {evaluation_date}\n"
+                f"Price provider: {price_provider}\n"
+                "Final allocation:"
+            )
+
+    haa_strategy_module.HAAStrategy = _HAAStrategy
 
     optimizer_module = types.ModuleType("utils.strategy_optimizer")
     optimizer_module.get_required_tickers_for_strategy = lambda _name: ["SPY"]
@@ -75,6 +90,7 @@ def cli_module(monkeypatch):
 
     monkeypatch.delitem(sys.modules, "cli", raising=False)
     monkeypatch.delitem(sys.modules, "cli_strategy_executor", raising=False)
+    monkeypatch.delitem(sys.modules, "strategies.haa_strategy", raising=False)
     monkeypatch.setitem(sys.modules, "config", config_module)
     monkeypatch.setitem(sys.modules, "main", main_module)
     monkeypatch.setitem(sys.modules, "portfolio", portfolio_module)
@@ -83,6 +99,7 @@ def cli_module(monkeypatch):
     monkeypatch.setitem(sys.modules, "utils.performance_monitor", perf_module)
     monkeypatch.setitem(sys.modules, "utils.strategy_optimizer", optimizer_module)
     monkeypatch.setitem(sys.modules, "cli_strategy_executor", cli_executor_module)
+    monkeypatch.setitem(sys.modules, "strategies.haa_strategy", haa_strategy_module)
 
     imported_cli_module = importlib.import_module("cli")
     try:
@@ -216,6 +233,43 @@ def test_strategy_kaw_runs_only_kaw(monkeypatch, cli_module, capsys):
     assert kaw_runner.call_count == 1
     assert haa_runner.call_count == 0
     assert "KAW:" in capsys.readouterr().out
+
+
+def test_strategy_sector_momentum_runs_only_sector_momentum(
+    monkeypatch, cli_module, capsys
+):
+    cli_module, cli_executor_module = cli_module
+    haa_runner = Mock(return_value={"HAA": 100.0})
+    kaw_runner = Mock(return_value={"KAW": 100.0})
+    baa_runner = Mock(return_value={"BAA": 100.0})
+    vaa_runner = Mock(return_value={"VAA": 100.0})
+    laa_runner = Mock(return_value={"LAA": 100.0})
+    bdaa_runner = Mock(return_value={"BDAA": 100.0})
+    mdm_runner = Mock(return_value={"MDM": 100.0})
+    sector_momentum_runner = Mock(return_value={"XLF": 100.0})
+
+    monkeypatch.setattr(cli_executor_module, "run_haa_strategy", haa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_kaw_strategy", kaw_runner)
+    monkeypatch.setattr(cli_executor_module, "run_baa_strategy", baa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_vaa_strategy", vaa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_laa_strategy", laa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_bdaa_strategy", bdaa_runner)
+    monkeypatch.setattr(cli_executor_module, "run_mdm_strategy", mdm_runner)
+    monkeypatch.setattr(
+        cli_executor_module, "run_sector_momentum_strategy", sector_momentum_runner
+    )
+
+    _run_cli(monkeypatch, cli_module, ["--strategy", "sector_momentum"])
+
+    assert sector_momentum_runner.call_count == 1
+    assert haa_runner.call_count == 0
+    assert kaw_runner.call_count == 0
+    assert baa_runner.call_count == 0
+    assert vaa_runner.call_count == 0
+    assert laa_runner.call_count == 0
+    assert bdaa_runner.call_count == 0
+    assert mdm_runner.call_count == 0
+    assert "SECTOR_MOMENTUM:" in capsys.readouterr().out
 
 
 def test_haa_debug_report_path_prints_trace(monkeypatch, cli_module, capsys):
