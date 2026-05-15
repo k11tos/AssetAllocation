@@ -7,6 +7,7 @@ A Python application for implementing various asset allocation strategies includ
 ### 🎯 Asset Allocation Strategies
 - **Hybrid Asset Allocation (HAA)**: Hybrid approach combining multiple factors
 - **Korean All-Weather Strategy**: Seasonal allocation strategy for Korean markets
+- **Sector Momentum Score**: U.S. sector rotation using weighted multi-horizon momentum
 - **Bold Asset Allocation (BAA)**: Momentum-based strategy with risk management
 - **Modified Dual Momentum (MDM)**: Enhanced dual momentum strategy
 - **Bond Dynamic Asset Allocation (BDAA)**: Dynamic bond allocation based on performance
@@ -108,10 +109,10 @@ For practical day-to-day run flow (scheduled vs CLI, storage, diff, and history 
 
 ### Execution Paths
 
-- **Scheduled/regular execution (`main.py`)**: production-style run path (currently runs HAA + KAW).
+- **Scheduled/regular execution (`main.py`)**: production-style run path (currently runs HAA + KAW + SECTOR_MOMENTUM with 45%/45%/10% sleeves).
 - **Manual analysis (`cli.py` / `asset-cli`)**: user-invoked CLI for ad-hoc strategy runs, output formatting, cache tools, and rebalancing helpers.
 - **Shared orchestration (`strategy_runner.py`)**: common strategy dispatch layer used by both entrypoints.
-- **CLI strategy execution (`cli_strategy_executor.py`)**: CLI-only strategy runner implementations (BAA/VAA/LAA/BDAA/MDM/HAA/KAW).
+- **CLI strategy execution (`cli_strategy_executor.py`)**: CLI-only strategy runner implementations (BAA/VAA/LAA/BDAA/MDM/HAA/KAW/SECTOR_MOMENTUM).
 
 ### 🖥️ Command Line Interface (manual path)
 
@@ -124,6 +125,7 @@ uv run asset-cli
 # Run specific strategy
 uv run asset-cli --strategy haa
 uv run asset-cli --strategy kaw
+uv run asset-cli --strategy sector_momentum
 
 # Different output formats
 uv run asset-cli --output json
@@ -229,6 +231,22 @@ Pull requests to `master` are validated by `.github/workflows/pr-check.yml`, whi
 ### Hybrid Asset Allocation (HAA)
 - Uses TIP as a market condition indicator
 - Allocates across 4 best-performing assets when TIP is positive
+
+### Sector Momentum Score
+- Uses 11 U.S. sector ETFs as the risk universe.
+- Ranks sectors with a weighted momentum score across 1/3/6/12-month lookbacks.
+- Selects the top 2 sectors for allocation.
+- Uses SGOV for unused selection slots or as a defensive fallback.
+
+## Scheduled Execution and Weighting
+
+- `main.py` scheduled runs execute `HAA`, `KAW`, and `SECTOR_MOMENTUM`.
+- Scheduled sleeve weights are explicitly set to:
+  - `HAA`: 45%
+  - `KAW`: 45%
+  - `SECTOR_MOMENTUM`: 10%
+- Saved strategy JSON outputs remain raw strategy-level allocations per strategy.
+- Telegram/text reports display final portfolio percentages after sleeve weighting is applied.
 
 ## 🏗️ Project Structure
 

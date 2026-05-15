@@ -14,6 +14,8 @@ uv run python main.py
 What it does:
 - validates configuration
 - runs scheduled strategies through shared orchestration (`run_selected_strategies(..., "main")`)
+  - scheduled set: `HAA`, `KAW`, `SECTOR_MOMENTUM`
+  - scheduled sleeve weights in reporting: `HAA 45%`, `KAW 45%`, `SECTOR_MOMENTUM 10%`
 - compares with previous scheduled snapshot (if `outputs/latest.json` exists)
 - prints a compact scheduled diff summary when changes exist
 - persists both:
@@ -59,10 +61,15 @@ JSON payload shape:
   "timestamp": "...",
   "strategies": {
     "HAA": {"...": 0.0},
-    "KAW": {"...": 0.0}
+    "KAW": {"...": 0.0},
+    "SECTOR_MOMENTUM": {"...": 0.0}
   }
 }
 ```
+
+Note:
+- Stored JSON strategy results are raw strategy-level allocations (per strategy output).
+- Operator-facing Telegram/text reports show final portfolio percentages after scheduled sleeve weighting is applied.
 
 ## 4) Compare/diff behavior
 
