@@ -6,6 +6,7 @@ Data service for financial data retrieval
 import logging
 import time
 from abc import ABC, abstractmethod
+from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -31,6 +32,46 @@ from utils.security import InputValidator, SecurityManager, log_security_event
 LOGGER = LoggingConfig.get_logger(__name__)
 
 
+class _MinuteCreditLimiter:
+    """Process-wide rolling-window limiter for Twelve Data symbol credits."""
+
+    def __init__(
+        self,
+        max_credits_per_minute: int,
+        request_sleep_seconds: int,
+        time_func: Optional[Any] = None,
+        sleep_func: Optional[Any] = None,
+    ):
+        self.max_credits_per_minute = max_credits_per_minute
+        self.request_sleep_seconds = request_sleep_seconds
+        self._time_func = time_func or time.time
+        self._sleep_func = sleep_func or time.sleep
+        self._request_timestamps: deque[float] = deque()
+
+    def _prune(self, now: float) -> None:
+        while self._request_timestamps and (now - self._request_timestamps[0] >= 60.0):
+            self._request_timestamps.popleft()
+
+    def acquire(self, symbol: str) -> None:
+        now = float(self._time_func())
+        self._prune(now)
+        if len(self._request_timestamps) < self.max_credits_per_minute:
+            self._request_timestamps.append(now)
+            return
+
+        wait_seconds = max(
+            float(self.request_sleep_seconds),
+            60.0 - (now - self._request_timestamps[0]),
+        )
+        LOGGER.info(
+            "Twelve Data global minute credit limit reached for %s. Sleeping %.2f seconds.",
+            symbol,
+            wait_seconds,
+        )
+        self._sleep_func(wait_seconds)
+        now_after_sleep = float(self._time_func())
+        self._prune(now_after_sleep)
+        self._request_timestamps.append(now_after_sleep)
 
 
 class PriceProvider(ABC):
@@ -60,16 +101,44 @@ class YahooPriceProvider(PriceProvider):
 class TwelveDataPriceProvider(PriceProvider):
     adjust_mode = "all"
     base_url = "https://api.twelvedata.com/time_series"
+    _shared_limiters: Dict[Tuple[int, int], _MinuteCreditLimiter] = {}
 
     def __init__(
         self,
         api_key: str,
         max_credits_per_minute: int = 8,
         request_sleep_seconds: int = 65,
+        limiter: Optional[_MinuteCreditLimiter] = None,
+        time_func: Optional[Any] = None,
+        sleep_func: Optional[Any] = None,
     ):
         self.api_key = api_key
         self.max_credits_per_minute = max_credits_per_minute
         self.request_sleep_seconds = request_sleep_seconds
+        self._time_func = time_func or time.time
+        self._sleep_func = sleep_func or time.sleep
+        self._limiter_override = limiter
+
+    @classmethod
+    def _get_shared_limiter(
+        cls,
+        max_credits_per_minute: int,
+        request_sleep_seconds: int,
+    ) -> _MinuteCreditLimiter:
+        key = (max_credits_per_minute, request_sleep_seconds)
+        if key not in cls._shared_limiters:
+            cls._shared_limiters[key] = _MinuteCreditLimiter(
+                max_credits_per_minute=max_credits_per_minute,
+                request_sleep_seconds=request_sleep_seconds,
+            )
+        return cls._shared_limiters[key]
+
+    def _get_limiter(self) -> _MinuteCreditLimiter:
+        if self._limiter_override is not None:
+            return self._limiter_override
+        return self._get_shared_limiter(
+            self.max_credits_per_minute, self.request_sleep_seconds
+        )
 
     def _fetch_symbol(self, symbol: str) -> pd.Series:
         response = requests.get(
@@ -86,6 +155,11 @@ class TwelveDataPriceProvider(PriceProvider):
         )
         response.raise_for_status()
         payload = response.json()
+        if payload.get("status") == "error" or payload.get("code") == 429:
+            message = payload.get("message", "Unknown Twelve Data error")
+            raise DataRetrievalError(
+                f"Twelve Data rate-limit or API error for {symbol}: {message}"
+            )
         if "values" not in payload:
             raise DataRetrievalError(
                 f"Twelve Data response missing values for {symbol}: {payload}"
@@ -112,6 +186,7 @@ class TwelveDataPriceProvider(PriceProvider):
             )
 
         data: Dict[str, pd.Series] = {}
+        limiter = self._get_limiter()
         total_batches = (
             len(tickers) + self.max_credits_per_minute - 1
         ) // self.max_credits_per_minute
@@ -129,6 +204,7 @@ class TwelveDataPriceProvider(PriceProvider):
             )
             try:
                 for symbol in batch_symbols:
+                    limiter.acquire(symbol)
                     data[symbol] = self._fetch_symbol(symbol)
             except requests.HTTPError as exc:
                 if exc.response is not None and exc.response.status_code == 429:
@@ -140,14 +216,6 @@ class TwelveDataPriceProvider(PriceProvider):
                     ) from exc
                 raise
 
-            if batch_index < total_batches:
-                LOGGER.info(
-                    "Twelve Data batch %s/%s complete. Sleeping %s seconds before next batch.",
-                    batch_index,
-                    total_batches,
-                    self.request_sleep_seconds,
-                )
-                time.sleep(self.request_sleep_seconds)
 
         if not data:
             return pd.DataFrame()
