@@ -32,3 +32,24 @@ class TestStrategyOptimizer(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_get_required_tickers_for_sector_momentum_includes_defensive_last():
+    """Sector Momentum 티커는 섹터 + 방어자산을 순서대로 포함해야 함"""
+    result = get_required_tickers_for_strategy("sector_momentum")
+    expected = [
+        "XLK",
+        "XLC",
+        "XLI",
+        "XLF",
+        "XLE",
+        "XLY",
+        "XLP",
+        "XLV",
+        "XLU",
+        "XLB",
+        "XLRE",
+        "SGOV",
+    ]
+
+    assert result == expected

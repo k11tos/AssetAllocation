@@ -269,6 +269,34 @@ class MDMConfig:
         self.BOND_ALLOCATION_RATIO = 100.0 / self.TOP_BONDS_COUNT
 
 
+
+
+@dataclass
+class SectorMomentumConfig:
+    """Sector Momentum 전략 설정"""
+
+    SECTOR_TICKERS: Optional[List[str]] = None
+    DEFENSIVE_TICKER: str = "SGOV"
+    TOP_COUNT: int = 2
+    MIN_MOMENTUM_SCORE: float = 0.0
+    REQUIRE_ABOVE_12M_SMA: bool = True
+
+    def __post_init__(self):
+        if self.SECTOR_TICKERS is None:
+            self.SECTOR_TICKERS = [
+                "XLK",
+                "XLC",
+                "XLI",
+                "XLF",
+                "XLE",
+                "XLY",
+                "XLP",
+                "XLV",
+                "XLU",
+                "XLB",
+                "XLRE",
+            ]
+
 @dataclass
 class APIConfig:
     """API 설정"""
@@ -315,6 +343,7 @@ BAA_CONFIG = BAAConfig()
 LAA_CONFIG = LAAConfig()
 BDAA_CONFIG = BDAAConfig()
 MDM_CONFIG = MDMConfig()
+SECTOR_MOMENTUM_CONFIG = SectorMomentumConfig()
 API_CONFIG = APIConfig()
 YFINANCE_CONFIG = YFinanceConfig()
 PRICE_PROVIDER_CONFIG = PriceProviderConfig()

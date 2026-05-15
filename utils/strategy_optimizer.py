@@ -12,6 +12,7 @@ from config import (
     HAA_CONFIG,
     LAA_CONFIG,
     MDM_CONFIG,
+    SECTOR_MOMENTUM_CONFIG,
     VAA_CONFIG,
 )
 
@@ -21,7 +22,7 @@ def get_required_tickers_for_strategy(strategy_name: str) -> List[str]:
     전략별로 필요한 ETF 티커 목록을 반환합니다.
 
     Args:
-        strategy_name: 전략 이름 (haa, baa, vaa, laa, bdaa, mdm)
+        strategy_name: 전략 이름 (haa, baa, vaa, laa, bdaa, mdm, sector_momentum)
 
     Returns:
         List[str]: 해당 전략에 필요한 ETF 티커 목록
@@ -33,6 +34,7 @@ def get_required_tickers_for_strategy(strategy_name: str) -> List[str]:
         "laa": _get_laa_tickers(),
         "bdaa": _get_bdaa_tickers(),
         "mdm": _get_mdm_tickers(),
+        "sector_momentum": _get_sector_momentum_tickers(),
     }
 
     return strategy_tickers.get(strategy_name.lower(), [])
@@ -80,6 +82,15 @@ def _get_mdm_tickers() -> List[str]:
     return ["SPY", "IEFA"] + MDM_CONFIG.BOND_TICKERS
 
 
+def _get_sector_momentum_tickers() -> List[str]:
+    """Sector Momentum 전략에 필요한 티커 목록"""
+    tickers = (
+        SECTOR_MOMENTUM_CONFIG.SECTOR_TICKERS
+        + [SECTOR_MOMENTUM_CONFIG.DEFENSIVE_TICKER]
+    )
+    return list(dict.fromkeys(tickers))
+
+
 def get_all_required_tickers(strategies: List[str]) -> List[str]:
     """
     여러 전략에 필요한 모든 티커를 중복 제거하여 반환합니다.
@@ -108,7 +119,7 @@ def get_strategy_optimization_info() -> Dict[str, Dict[str, object]]:
     """
     info = {}
 
-    for strategy in ["haa", "baa", "vaa", "laa", "bdaa", "mdm"]:
+    for strategy in ["haa", "baa", "vaa", "laa", "bdaa", "mdm", "sector_momentum"]:
         required_tickers = get_required_tickers_for_strategy(strategy)
         info[strategy.upper()] = {
             "required_tickers": len(required_tickers),
