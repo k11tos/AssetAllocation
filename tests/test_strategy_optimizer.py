@@ -54,3 +54,4 @@ def test_get_required_tickers_for_sector_momentum_excludes_defensive_ticker():
     assert result == expected
     assert "SGOV" not in result
     assert len(result) == len(set(result))
+    assert len(result) == 11
