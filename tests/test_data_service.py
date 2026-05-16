@@ -7,7 +7,7 @@ from services.data_service import TwelveDataPriceProvider, _MinuteCreditLimiter
 
 
 class TestTwelveDataRateLimitAndErrors:
-    def test_rate_limit_is_shared_when_reusing_same_limiter(self):
+    def test_rate_limit_is_shared_by_default_across_provider_instances(self, monkeypatch):
         clock = {"now": 0.0}
         slept = []
 
@@ -18,26 +18,33 @@ class TestTwelveDataRateLimitAndErrors:
             slept.append(seconds)
             clock["now"] += seconds
 
-        limiter = _MinuteCreditLimiter(
-            max_credits_per_minute=2,
-            request_sleep_seconds=65,
-            time_func=fake_time,
-            sleep_func=fake_sleep,
-        )
-        provider_1 = TwelveDataPriceProvider("key", limiter=limiter)
-        provider_2 = TwelveDataPriceProvider("key", limiter=limiter)
+        TwelveDataPriceProvider._shared_limiters.clear()
+        try:
+            monkeypatch.setattr("services.data_service.time.time", fake_time)
+            monkeypatch.setattr("services.data_service.time.sleep", fake_sleep)
 
-        def fake_fetch(symbol):
-            return pd.Series([100.0], index=pd.to_datetime(["2026-01-02"]), name=symbol)
+            provider_1 = TwelveDataPriceProvider(
+                "key", max_credits_per_minute=2, request_sleep_seconds=65
+            )
+            provider_2 = TwelveDataPriceProvider(
+                "key", max_credits_per_minute=2, request_sleep_seconds=65
+            )
 
-        provider_1._fetch_symbol = fake_fetch
-        provider_2._fetch_symbol = fake_fetch
+            assert provider_1._get_limiter() is provider_2._get_limiter()
 
-        provider_1.fetch(["SPY", "IWM"])
-        provider_2.fetch(["TIP"])
+            def fake_fetch(symbol):
+                return pd.Series([100.0], index=pd.to_datetime(["2026-01-02"]), name=symbol)
 
-        assert len(slept) == 1
-        assert slept[0] >= 60.0
+            provider_1._fetch_symbol = fake_fetch
+            provider_2._fetch_symbol = fake_fetch
+
+            provider_1.fetch(["SPY", "IWM"])
+            provider_2.fetch(["TIP"])
+
+            assert len(slept) == 1
+            assert slept[0] >= 60.0
+        finally:
+            TwelveDataPriceProvider._shared_limiters.clear()
 
     def test_error_payload_with_status_error_or_429_raises_clear_message(self, monkeypatch):
         class _Resp:
