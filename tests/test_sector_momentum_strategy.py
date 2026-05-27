@@ -146,3 +146,47 @@ class TestSectorMomentumStrategy:
         )
 
         assert result == {"XLC": 50.0, "SGOV": 50.0}
+
+    def test_selected_sector_underperformer_replaced_with_benchmark(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 1.2, "XLC": 0.8, "SPY": 0.9},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 110, "XLC": 95},
+            }
+        )
+
+        assert result == {"XLK": 50.0, "SPY": 50.0}
+
+    def test_multiple_replacements_accumulate_to_benchmark(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 0.7, "XLC": 0.6, "SPY": 0.9},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 110, "XLC": 95},
+            }
+        )
+
+        assert result == {"SPY": 100.0}
+
+    def test_benchmark_replacement_keeps_defensive_fill_for_missing_slots(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 0.7, "SPY": 0.9},
+                "sma_12month": {"XLK": 100},
+                "today_price": {"XLK": 110},
+            }
+        )
+
+        assert result == {"SPY": 50.0, "SGOV": 50.0}
+
+    def test_invalid_benchmark_score_keeps_existing_behavior(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 0.7, "XLC": 0.6, "SPY": math.nan},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 110, "XLC": 95},
+            }
+        )
+
+        assert result == {"XLK": 50.0, "XLC": 50.0}

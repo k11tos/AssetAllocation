@@ -84,6 +84,10 @@ class SectorMomentumStrategy(BaseStrategy):
 
         allocation: Dict[str, float] = {}
         selected = candidates[:top_count]
+        selected = self._replace_underperformers_with_benchmark(
+            selected=selected,
+            momentum_score=momentum_score,
+        )
 
         for ticker, _ in selected:
             allocation[ticker] = allocation.get(ticker, 0.0) + slot_size
@@ -96,3 +100,28 @@ class SectorMomentumStrategy(BaseStrategy):
             )
 
         return allocation
+
+    def _replace_underperformers_with_benchmark(
+        self,
+        selected: List[Tuple[str, float]],
+        momentum_score: Dict[str, float],
+    ) -> List[Tuple[str, float]]:
+        """선정된 섹터 ETF 중 벤치마크보다 약한 종목을 벤치마크로 대체"""
+        if not SECTOR_MOMENTUM_CONFIG.REPLACE_WITH_BENCHMARK_IF_UNDERPERFORMING:
+            return selected
+
+        benchmark_ticker = SECTOR_MOMENTUM_CONFIG.BENCHMARK_TICKER
+        benchmark_raw_score = momentum_score.get(benchmark_ticker)
+        if not _is_finite_number(benchmark_raw_score):
+            return selected
+
+        benchmark_score = float(benchmark_raw_score)
+
+        replaced: List[Tuple[str, float]] = []
+        for ticker, sector_score in selected:
+            if sector_score < benchmark_score:
+                replaced.append((benchmark_ticker, benchmark_score))
+            else:
+                replaced.append((ticker, sector_score))
+
+        return replaced
