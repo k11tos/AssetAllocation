@@ -158,6 +158,17 @@ class TestSectorMomentumStrategy:
 
         assert result == {"XLK": 50.0, "SPY": 50.0}
 
+    def test_no_replacement_when_selected_sectors_beat_benchmark(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 1.2, "XLC": 1.1, "SPY": 1.0},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 110, "XLC": 95},
+            }
+        )
+
+        assert result == {"XLK": 50.0, "XLC": 50.0}
+
     def test_multiple_replacements_accumulate_to_benchmark(self):
         result = self.strategy.calculate_allocation(
             {
@@ -184,6 +195,66 @@ class TestSectorMomentumStrategy:
         result = self.strategy.calculate_allocation(
             {
                 "momentum_score": {"XLK": 0.7, "XLC": 0.6, "SPY": math.nan},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 110, "XLC": 95},
+            }
+        )
+
+        assert result == {"XLK": 50.0, "XLC": 50.0}
+
+    def test_missing_benchmark_score_keeps_existing_behavior(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 0.7, "XLC": 0.6},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 110, "XLC": 95},
+            }
+        )
+
+        assert result == {"XLK": 50.0, "XLC": 50.0}
+
+    def test_non_finite_or_non_numeric_benchmark_score_keeps_existing_behavior(
+        self,
+    ):
+        baseline_data = {
+            "sma_12month": {"XLK": 100, "XLC": 90},
+            "today_price": {"XLK": 110, "XLC": 95},
+        }
+
+        for invalid_benchmark_score in (math.inf, -math.inf, "invalid", None):
+            result = self.strategy.calculate_allocation(
+                {
+                    "momentum_score": {
+                        "XLK": 0.7,
+                        "XLC": 0.6,
+                        "SPY": invalid_benchmark_score,
+                    },
+                    **baseline_data,
+                }
+            )
+
+            assert result == {"XLK": 50.0, "XLC": 50.0}
+
+    def test_benchmark_present_but_not_selected_when_no_sector_passes(self):
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": -0.1, "XLC": -0.2, "SPY": 1.5},
+                "sma_12month": {"XLK": 100, "XLC": 90},
+                "today_price": {"XLK": 110, "XLC": 95},
+            }
+        )
+
+        assert result == {"SGOV": 100.0}
+
+    def test_replacement_can_be_disabled_via_config(self, monkeypatch):
+        monkeypatch.setattr(
+            "strategies.sector_momentum_strategy.SECTOR_MOMENTUM_CONFIG.REPLACE_WITH_BENCHMARK_IF_UNDERPERFORMING",
+            False,
+        )
+
+        result = self.strategy.calculate_allocation(
+            {
+                "momentum_score": {"XLK": 0.7, "XLC": 0.6, "SPY": 0.9},
                 "sma_12month": {"XLK": 100, "XLC": 90},
                 "today_price": {"XLK": 110, "XLC": 95},
             }
