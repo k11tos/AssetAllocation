@@ -84,7 +84,10 @@ def _get_mdm_tickers() -> List[str]:
 
 def _get_sector_momentum_tickers() -> List[str]:
     """Sector Momentum 전략에 필요한 티커 목록"""
-    return list(dict.fromkeys(SECTOR_MOMENTUM_CONFIG.SECTOR_TICKERS))
+    tickers = SECTOR_MOMENTUM_CONFIG.SECTOR_TICKERS + [
+        SECTOR_MOMENTUM_CONFIG.BENCHMARK_TICKER
+    ]
+    return list(dict.fromkeys(tickers))
 
 
 def get_all_required_tickers(strategies: List[str]) -> List[str]:

@@ -283,6 +283,8 @@ class SectorMomentumConfig:
     TOP_COUNT: int = 2
     MIN_MOMENTUM_SCORE: float = 0.0
     REQUIRE_ABOVE_12M_SMA: bool = True
+    BENCHMARK_TICKER: str = "SPY"
+    REPLACE_WITH_BENCHMARK_IF_UNDERPERFORMING: bool = True
 
     def __post_init__(self):
         if self.SECTOR_TICKERS is None:
