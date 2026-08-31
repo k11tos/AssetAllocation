@@ -11,14 +11,14 @@ dependencies = [
     "python-telegram-bot>=22.8",
     "yfinance>=1.7.0",
     "fredapi>=0.5.2",
-    "python-dotenv>=1.1.1",
-    "requests>=2.31.0",
+    "python-dotenv>=1.2.2",
+    "requests>=2.33.0",
     "ta-lib>=0.6.7",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.3",
+    "pytest>=9.0.3",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
     "pre-commit>=4.3.0",
@@ -66,7 +66,7 @@ dev = [
     "coverage>=7.10.6",
     "mypy>=1.18.2",
     "pylint>=4.0.7",
-    "pytest>=8.4.2",
+    "pytest>=9.0.3",
     "pytest-cov>=6.2.1",
     "pytest-mock>=3.15.0",
     "radon>=6.0.1",
