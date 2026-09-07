@@ -72,6 +72,6 @@ dev = [
     "radon>=6.0.1",
     "safety>=3.8.1",
     "sphinx>=8.2.3",
-    "sphinx-autodoc-typehints>=3.13.4",
+    "sphinx-autodoc-typehints>=3.13.5",
     "sphinx-rtd-theme>=3.0.2",
 ]
