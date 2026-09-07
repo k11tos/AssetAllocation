@@ -62,7 +62,7 @@ multi_line_output = 3               # (black 프로필에 포함되지만 명시
 
 [dependency-groups]
 dev = [
-    "bandit>=1.8.6",
+    "bandit>=1.9.4",
     "coverage>=7.10.6",
     "mypy>=1.18.2",
     "pylint>=4.0.7",
