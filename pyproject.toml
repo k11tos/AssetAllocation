@@ -13,7 +13,7 @@ dependencies = [
     "fredapi>=0.5.2",
     "python-dotenv>=1.2.3",
     "requests>=2.34.2",
-    "ta-lib>=0.8.0",
+    "ta-lib>=0.8.1",
 ]
 
 [project.optional-dependencies]
