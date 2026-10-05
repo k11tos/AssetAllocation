@@ -20,7 +20,7 @@ dependencies = [
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "pytest-mock>=3.15.1",
+    "pytest-mock>=3.16.0",
     "pre-commit>=4.6.2",
 ]
 
@@ -68,7 +68,7 @@ dev = [
     "pylint>=4.0.9",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "pytest-mock>=3.15.1",
+    "pytest-mock>=3.16.0",
     "radon>=6.0.1",
     "safety>=3.8.1",
     "sphinx>=8.2.3",
