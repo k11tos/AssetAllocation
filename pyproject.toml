@@ -71,7 +71,7 @@ dev = [
     "pytest-mock>=3.17.0",
     "radon>=6.0.1",
     "safety>=3.8.1",
-    "sphinx>=8.2.3",
+    "sphinx>=9.1.1",
     "sphinx-autodoc-typehints>=3.13.10",
     "sphinx-rtd-theme>=3.0.2",
 ]
